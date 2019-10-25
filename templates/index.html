@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Hello World!
+{% endblock %}
+
+{% block content %}
+  <style>
+    section {
+      height: calc(100vh - 52px);
+      display: grid;
+      grid-template-columns: minmax(200px, 1fr) 4fr;
+    }
+    aside {
+      background-color: #abcdef;
+    }
+    main {
+      padding: 1rem;
+      height: inherit;
+      background-color: #eee;
+      display: flex; 
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    #Chat-Name, #Chat-Input {
+      min-height: 50px;
+    }
+    #Chat-Convo {
+      flex-grow: 1;
+      overflow-y: scroll;
+    }
+
+    @media screen and (max-width: 600px) {
+      section {
+        grid-template-columns: 5fr;
+      }
+      aside {
+        display:none;
+      }
+    }
+
+
+  </style>
+  <section>
+    <aside id="Index-sidebar"></aside>
+    <main>
+      <!-- Main channel or last channel -->
+      <div id="Chat-Name">Channel Name</div>
+      <div id="Chat-Convo">
+        <div>
+            Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat earum culpa dolores rem maxime repellendus quam ab delectus, officiis praesentium accusantium sit debitis eius consequuntur consectetur iusto nam molestias optio.
+            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat earum culpa dolores rem maxime repellendus quam ab delectus, officiis praesentium accusantium sit debitis eius consequuntur consectetur iusto nam molestias optio.</p>
+            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat earum culpa dolores rem maxime repellendus quam ab delectus, officiis praesentium accusantium sit debitis eius consequuntur consectetur iusto nam molestias optio.</p>
+            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat earum culpa dolores rem maxime repellendus quam ab delectus, officiis praesentium accusantium sit debitis eius consequuntur consectetur iusto nam molestias optio.Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat earum culpa dolores rem maxime repellendus quam ab delectus, officiis praesentium accusantium sit debitis eius consequuntur consectetur iusto nam molestias optio.Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat earum culpa dolores rem maxime repellendus quam ab delectus, officiis praesentium accusantium sit debitis eius consequuntur consectetur iusto nam molestias optio.</p>
+        </div>
+      </div>
+      <div id="Chat-Input">
+        <input type="text">
+        <button>Submit</button>
+      </div>
+    </main>
+  </section>
+  
+  <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        // Get user data on load
+        let user = localStorage.getItem("user");
+        
+        // If first time, get unique username
+        if (!user) {
+          let username = prompt("What is your name?");
+          // TODO check via AJAX
+          let user = new User(username, Date.now());
+
+          localStorage.setItem("user", JSON.stringify(user));
+          document.querySelector("Nav-Greeting").textContent = `Hi, ${user.username}`;
+        } else {
+          user = JSON.parse(user);
+          document.querySelector("#Nav-Greeting").textContent = `Welcome back, ${user.username}`;
+        }
+
+        // https://cs50.harvard.edu/web/notes/5/
+        // let socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+
+
+
+      });
+
+    </script>
+
+
+{% endblock %}
+
+  
+
+  
