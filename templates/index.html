@@ -13,7 +13,44 @@
     }
     aside {
       background-color: #abcdef;
+      padding: 20px;
     }
+
+    #Menu-search-bar {
+      padding: 8px 4px 8px 16px;
+      margin-bottom: 0px;
+    }
+
+    #Menu-search-bar > .level-left {
+      flex-grow: 1;
+      flex-shrink: 1;
+    }
+
+    #Menu-search-bar .level-item {
+      justify-content: flex-start;
+      flex-grow: 1;
+      flex-shrink: 1;
+    }
+
+    #Menu-search-bar input {
+      border: none;
+      width: 100%;
+    }
+
+    #Menu-search-bar button {
+      background-color: transparent;
+      border: none;
+      padding: .5em;
+      font-size: 14px;
+      color: #9f9f9f;
+    }
+
+    #Menu-search-bar button:hover {
+      cursor: pointer;
+      background-color: transparent;
+      color: #262626;
+    }
+
     main {
       padding: 1rem;
       height: inherit;
@@ -42,69 +79,209 @@
 
 
   </style>
-  <section>
-    <aside id="Index-sidebar"></aside>
-    <main>
-      <!-- Main channel or last channel -->
-      <div id="Chat-Name">Channel Name</div>
-      <div id="Chat-Convo">
-        
-      </div>
-      <div id="Chat-Input">
-        <input type="text">
-        <button>Submit</button>
-      </div>
-    </main>
-  </section>
+
+<section>
+  <!-- Channel Aside -->
+  <aside class="menu">
+    <p class="menu-label">
+      Channels
+    </p>
+    <ul class="menu-list">
+      <li>
+        <div class="input is-rounded level" id="Menu-search-bar">
+          <div class="control is-expanded level-left">
+            <div class="level-item">
+              <input type="text" placeholder="Search or create channel" id="Menu-search-value">
+            </div>
+          </div>
+          <div class="control level-right">
+            <div class="level-item">
+              <button id="Menu-search-Add">
+                <i class="fas fa-plus"></i>
+              </button>
+              <button>
+                <i class="fas fa-search"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="help is-danger"></p>
+      </li>
+      
+      {% for public_channel in public_channels %}
+        <li><a>{{ public_channel }}</a></li>
+      {% endfor %}
+    </ul>
+    <p class="menu-label">
+      Friends
+    </p>
+  </aside>
+  <main>
+    <!-- Main channel or last channel -->
+    <div id="Chat-Name"></div>
+    <div id="Chat-Convo"></div>
+    <div id="Chat-Input">
+      <input type="text" class="input">
+      <button>Submit</button>
+    </div>
+  </main>
+</section>
   
-  <script id="Template-Username" type="text/x-lodash-template">
-    <div>
-      <p>
-        <%- comment %>
-      </p>
+<script id="Template-Username" type="text/x-lodash-template">
+  <div>
+    <%= comment %>
+  </div>
+</script>
+
+  <script id="Template-Modal" type="text/x-lodash-template">
+    <div class="modal is-active" id="Index-PopUp">
+      <div class="modal-background"></div>  
+      <div class="modal-content">
+
+        <div class="box">
+          <article class="media">
+            <div class="media-content">
+              <div class="content">
+
+                <p class="title is-3">Welcome to ChatRoom!</p>
+                <p class="subtitle is-5">First time here? Enter username below to begin!</p>
+
+                <div class="field">
+                  <label class="label">Name</label>
+                  <div class="control has-icons-left has-icons-right">
+                    <input class="input" type="text" placeholder="Username">
+                    <span class="icon is-small is-left">
+                      <i class="fas fa-user"></i>
+                    </span>
+                    <p class="help is-danger"></p>
+                  </div>
+                </div>
+
+                <div class="buttons is-right">
+                  <div class="control">
+                    <button class="button is-link">Submit</button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+      </div>
     </div>
   </script>
 
   <script>
-      let templteFunction = _.template(document.querySelector("#Template-Username").innerHTML);
+      const templateFn = _.template(document.querySelector("#Template-Username").innerHTML);
+
+      // https://cs50.harvard.edu/web/notes/5/
+      const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
 
       document.addEventListener("DOMContentLoaded", function() {
-        // Get user data on load
-        let user = localStorage.getItem("user");
+        // Get user object on load
+        let user = localStorage.getItem("user"); // user here will be the user object
         
         // If first time, get unique username
         if (!user) {
-          let username = prompt("What is your name?");
-          // TODO check via AJAX
-          let user = new User(username, Date.now());
+          // Force pop up
+          document.querySelector("main").innerHTML += document.querySelector("#Template-Modal").innerHTML;
 
-          localStorage.setItem("user", JSON.stringify(user));
-          document.querySelector("Nav-Greeting").innerHTML = templteFunction({'comment': `Hi, ${user.username}`});
+          // get unvalidated username
+          document.querySelector("#Index-PopUp button").addEventListener("click", function(event) {
+            event.preventDefault();
+
+            const username = document.querySelector("#Index-PopUp input").value;
+            const warningBlock = document.querySelector("#Index-PopUp .help");
+
+            // Remove prior errors if any
+            document.querySelector("#Index-PopUp input").classList.remove("is-danger");
+            warningBlock.textContent = "";
+
+            // Validate username
+            if (!username) {
+              // No input
+              document.querySelector("#Index-PopUp input").classList.add("is-danger");
+              warningBlock.textContent = "Please enter a valid name";
+            } else {
+              socket.emit("new username", username); // raw unvalidated string
+
+              socket.on("username result", function(result) {
+                if (result == "not allowed") {
+                // Matched username
+                  document.querySelector("#Index-PopUp input").classList.add("is-danger");
+                  warningBlock.textContent = "This username is used";
+                } else {
+                // Success
+                  document.querySelector("#Index-PopUp").classList.remove("is-active");
+
+                  // Store user object client side
+                  user = new User(username, Date.now());
+                  localStorage.setItem("user", JSON.stringify(user));
+
+                  document.querySelector("#Layout-Greeting").innerHTML = 
+                    templateFn({"comment": `Hi, ${user.username}`});
+
+                    // and server side
+                    socket.emit("new user", JSON.stringify(user));
+                }
+              });
+            }
+          });
         } else {
           user = JSON.parse(user);
-          document.querySelector("#Nav-Greeting").innerHTML = templteFunction({'comment': `Welcome back, ${user.username}`});
+          document.querySelector("#Layout-Greeting").innerHTML = templateFn({"comment": `Welcome back, ${user.username}`});
         }
 
-        // https://cs50.harvard.edu/web/notes/5/
-        let socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
 
-        // When connected, configure buttons
-        socket.on('connect', () => {
+      // Channel Functionalities
+        const searchBarValue = document.queryselector("#Menu-search-value").value;
 
-            // Each button should emit a "submit vote" event
-            document.querySelectorAll('button').forEach(button => {
-                button.onclick = () => {
-                    const selection = button.dataset.vote;
-                    socket.emit('submit vote', {'selection': selection});
-                };
+        // Create Channel
+        const createChannel = document.querySelector("#Menu-search-Add");
+                
+        createChannel.addEventListener("click", function(event){
+          event.preventDefault();
+
+          if (!searchBarValue) {
+            // Check whether channel name used
+            socket.emit("new channel name", JSON.stringify(ChannelAttempt)); // Raw unvalidated string
+
+            socket.on("Channel attempt", channelCreateResult => {
+              if (channelCreateResult == "true") {
+                let channelCreated = new Channel(searchBarValue, user);
+
+                socket.emit("new channel", JSON.stringify(channelCreated));                
+              }
+
+              socket.on("channel update", channelObj => {
+                  let channel = JSON.parse(channelObj);
+
+                  
+                });
             });
+          }
         });
 
-        // When a new vote is announced, add to the unordered list
-        socket.on('announce vote', data => {
-            const li = document.createElement('li');
-            li.innerHTML = `Vote recorded: ${data.selection}`;
-            document.querySelector('#votes').append(li);
+
+      // Messaging Functionalities
+      
+        // Message in
+        socket.on('message in', messageParcel => {
+          messageParcel = JSON.parse(messageParcel);
+          const messageHTML = templateFn({'comment': `${messageParcel.message} by ${messageParcel.author.username} at ${messageParcel.timeStamp}`});
+          document.querySelector('#Chat-Convo').innerHTML += messageHTML;
+        });
+
+        // Message out
+        document.querySelector('#Chat-Input > button').addEventListener("click", function(event) {
+          event.preventDefault();
+          const message = document.querySelector("#Chat-Input > input").value;
+
+          if (message) {
+            const msgObj = new Message(user, message, new Date());
+            socket.emit('message out', JSON.stringify(msgObj));
+          }
         });
       });
 

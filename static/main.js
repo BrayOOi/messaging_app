@@ -12,6 +12,10 @@ class User {
     this.username = username;
     this.dateCreated = dateCreated;
   }
+
+  changeUsername(newUsername) {
+    this.username = newUsername;
+  }
 }
 
 class Channel {
