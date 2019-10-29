@@ -16,37 +16,47 @@
       padding: 20px;
     }
 
+    .menu-list button {
+      background-color: transparent;
+      border: none;
+    }
+    .menu-list button:hover {
+      cursor: pointer;
+    }
+
     #Menu-search-bar {
       padding: 8px 4px 8px 16px;
       margin-bottom: 0px;
     }
 
-    #Menu-search-bar > .level-left {
+    .menu-input > .level-left {
       flex-grow: 1;
       flex-shrink: 1;
     }
 
-    #Menu-search-bar .level-item {
+    .menu-input .level-item {
       justify-content: flex-start;
       flex-grow: 1;
       flex-shrink: 1;
     }
 
-    #Menu-search-bar input {
+    .menu-input input {
       border: none;
       width: 100%;
     }
 
+    .menu-input button.is-rounded {
+      height: 35px;
+      width: 35px;
+      padding: .1em .12em .1em .08em;
+    }
+
     #Menu-search-bar button {
-      background-color: transparent;
-      border: none;
       padding: .5em;
-      font-size: 14px;
       color: #9f9f9f;
     }
 
     #Menu-search-bar button:hover {
-      cursor: pointer;
       background-color: transparent;
       color: #262626;
     }
@@ -60,12 +70,29 @@
       align-items: stretch;
     }
 
+    #Chat-Input {
+      padding-right: .5em;
+      margin: .5em 0;
+    }
+
+    #Chat-Send {
+      padding: .5em .8em .5em .6em;
+      font-size: 14px;
+      margin-left: .25em;
+    }
+
     #Chat-Name, #Chat-Input {
       min-height: 50px;
     }
     #Chat-Convo {
       flex-grow: 1;
       overflow-y: scroll;
+    }
+
+    @media screen and (max-width: 768px) {
+      .level-left+.level-right {
+        margin-top: 0rem;
+      }
     }
 
     @media screen and (max-width: 600px) {
@@ -83,12 +110,13 @@
 <section>
   <!-- Channel Aside -->
   <aside class="menu">
+    <!-- Search Bar -->
     <p class="menu-label">
       Channels
     </p>
-    <ul class="menu-list">
+    <ul class="menu-list" id="Menu-Channels">
       <li>
-        <div class="input is-rounded level" id="Menu-search-bar">
+        <div class="input is-rounded level menu-input" id="Menu-search-bar">
           <div class="control is-expanded level-left">
             <div class="level-item">
               <input type="text" placeholder="Search or create channel" id="Menu-search-value">
@@ -106,11 +134,7 @@
           </div>
         </div>
         <p class="help is-danger"></p>
-      </li>
-      
-      {% for public_channel in public_channels %}
-        <li><a>{{ public_channel }}</a></li>
-      {% endfor %}
+      </li>      
     </ul>
     <p class="menu-label">
       Friends
@@ -120,9 +144,22 @@
     <!-- Main channel or last channel -->
     <div id="Chat-Name"></div>
     <div id="Chat-Convo"></div>
-    <div id="Chat-Input">
-      <input type="text" class="input">
-      <button>Submit</button>
+    <div id="Chat-Input" class="input is-rounded level menu-input">
+      <div class="control is-expanded level-left">
+        <div class="level-item">
+          <input type="text" placeholder="Say something here!">
+        </div>
+      </div>
+      <div class="control level-right">
+        <div class="level-item">
+          <button class="button is-rounded is-info">
+              <i class="far fa-smile"></i>
+          </button>
+          <button class="button is-rounded is-info" id="Chat-Send">
+              <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
     </div>
   </main>
 </section>
@@ -174,6 +211,9 @@
 
   <script>
       const templateFn = _.template(document.querySelector("#Template-Username").innerHTML);
+      const channelContainer = document.querySelector("#Menu-Channels");
+      const channelHead = document.querySelector("#Chat-Name");
+      const channelConvo = document.querySelector("#Chat-Convo");
 
       // https://cs50.harvard.edu/web/notes/5/
       const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
@@ -235,7 +275,6 @@
 
 
       // Channel Functionalities
-        const searchBarValue = document.queryselector("#Menu-search-value").value;
 
         // Create Channel
         const createChannel = document.querySelector("#Menu-search-Add");
@@ -243,43 +282,51 @@
         createChannel.addEventListener("click", function(event){
           event.preventDefault();
 
-          if (!searchBarValue) {
+          let searchBarValue = document.querySelector("#Menu-search-value").value;
+
+          if (searchBarValue) {
             // Check whether channel name used
-            socket.emit("new channel name", JSON.stringify(ChannelAttempt)); // Raw unvalidated string
+            socket.emit("new channel name", searchBarValue); // Raw unvalidated string
 
             socket.on("Channel attempt", channelCreateResult => {
               if (channelCreateResult == "true") {
-                let channelCreated = new Channel(searchBarValue, user);
-
-                socket.emit("new channel", JSON.stringify(channelCreated));                
+                let channel = new Channel(searchBarValue, user);
+                socket.emit("new channel", JSON.stringify(channel), channel.name);  
+                
+                // show channel upon creation
+                channel.showChat(channelHead, channelConvo);
               }
 
+              // All channel creations
               socket.on("channel update", channelObj => {
-                  let channel = JSON.parse(channelObj);
+                let channel = channelJSONConvert(channelObj);
 
-                  
-                });
+                // append channel to list of public channels
+                channelContainer.append(channel.showChatList(channel));
+              });
             });
           }
         });
 
-
       // Messaging Functionalities
       
         // Message in
-        socket.on('message in', messageParcel => {
+        socket.on('message in', (messageParcel, room) => {
           messageParcel = JSON.parse(messageParcel);
           const messageHTML = templateFn({'comment': `${messageParcel.message} by ${messageParcel.author.username} at ${messageParcel.timeStamp}`});
           document.querySelector('#Chat-Convo').innerHTML += messageHTML;
         });
 
         // Message out
-        document.querySelector('#Chat-Input > button').addEventListener("click", function(event) {
+        document.querySelector('#Chat-Send').addEventListener("click", function(event) {
           event.preventDefault();
-          const message = document.querySelector("#Chat-Input > input").value;
+          const message = document.querySelector("#Chat-Input input").value;
 
           if (message) {
             const msgObj = new Message(user, message, new Date());
+
+            channel.massageHandler(msgObj);
+            
             socket.emit('message out', JSON.stringify(msgObj));
           }
         });

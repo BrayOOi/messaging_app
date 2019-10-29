@@ -1,9 +1,10 @@
 class Message {
-  constructor(usrObject, message, timeStamp) {
+  constructor(usrObject, message, timeStamp, channel) {
     // Directly tying usrObject with message to extract more info
     this.author = usrObject;
     this.message = message;
     this.timeStamp = timeStamp;
+    this.channel = channel.name;
   }
 }
 
@@ -26,20 +27,53 @@ class Channel {
     this.owner = owner; // Creator
   }
 
-  // History Manager
-  convoHistory(msgObj) {
-    // Only storing 100 messages per channel
-    if (this.history.length >= 100) {
-      this.history.shift();
-    } 
+  // Convo Manager
+  messageHandler(msgObj) {
 
-    this.history.push(msgObj);
   }
-
+ 
   // upon firing a message into the channel, add user into list TODO
   participantAdd(userObj) {
     this.participants.push(userObj);
   }
+
+  // Handle the viewing of chat details
+  showChat(channelHead, channelConvo) {
+    channelHead.textContent = this.name;
+    channelConvo.innerHTML = this.history
+      .map(msg => 
+        `<div>
+          <p>${msg.author} at ${msg.timeStamp}</p>
+          <div>${msg.message}</div>
+        </div>`).join("") || "There is no message to be displayed. Start chatting!";
+  }
+
+  showChatList(channel) {
+    let li = document.createElement("li");
+    let button = document.createElement("button");
+    li.append(button);
+    button.append(this.name);
+
+    button.addEventListener("click", function(event) {
+      event.preventDefault();
+
+      // upon click, the window will switch to this channel
+      channel.showChat(channelHead, channelConvo);
+
+    });
+
+    return li;
+  }
+}
+
+// JSON convertor to Channel Objects
+function channelJSONConvert(objParcel) {
+  objParcel = JSON.parse(objParcel);
+  let returnedChannel = new Channel(objParcel.name, objParcel.owner);
+  returnedChannel.history = objParcel.history;
+  returnedChannel.participants = objParcel.history;
+
+  return returnedChannel;
 }
 
   // Private channels get to limit their participants
@@ -55,16 +89,3 @@ class PrivateChannel extends Channel {
     this.participants.push(usrObj);
   }
 }
-
-/*EVENTS HANDLERS*/
-// const menu = document.querySecletor("#navbarBasicExample");
-// const menuToggle = document.querySecletor("#Nav a.burger");
-
-
-// menuToggle.addEventListener("click", function() {
-//   if (menu.classList.contains("is-active")) {
-//     menu.classList.remove("is-active");
-//   } else {
-//     menu.classList.add("is-active");
-//   }
-// });
