@@ -11,7 +11,7 @@ socketio = SocketIO(app)
 
 @app.route("/")
 def index():
-  return render_template("index.html", public_channels=public_channels)
+  return render_template("index.html")
 
 
 """User management"""
@@ -42,20 +42,30 @@ def message_handler(messageParcel, channel_name):
 public_channels_names = []
 public_channels = []
 
+@socketio.on("get channels")
+def channel_display():
+  print(public_channels)
+  emit("give channels", list(json.dumps(public_channel) for public_channel in public_channels))
+
 # Check whether channel name used
 @socketio.on("new channel name")
 def channel_validate(channelParcel):
   if channelParcel in public_channels_names:
-    emit("Channel attempt", "false")
+    emit("Channel attempt", 0)
   else: 
-    emit("Channel attempt", "true")
+    public_channels_names.append(channelParcel)
+    emit("Channel attempt", 1)
 
 # New channel to add in memory
 @socketio.on("new channel")
 def channel_handler(channel_object, channel_name):
-  room = channel_name
-  join_room(room)
-  emit("channel update", channel_object)
+  channel = json.loads(channel_object)
+  if channel["name"] in list(public_channel["name"] for public_channel in public_channels):
+    return
+  else:
+    public_channels.append(channel)
+    room = channel_name
+    join_room(room)
 
 
 # Run python3 application.py for development server

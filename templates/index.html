@@ -62,7 +62,7 @@
     }
 
     main {
-      padding: 1rem;
+      padding: 1em;
       height: inherit;
       background-color: #eee;
       display: flex; 
@@ -86,7 +86,8 @@
     }
     #Chat-Convo {
       flex-grow: 1;
-      overflow-y: scroll;
+      background-color: #ddd;
+      /* overflow-y: scroll; */
     }
 
     @media screen and (max-width: 768px) {
@@ -134,7 +135,17 @@
           </div>
         </div>
         <p class="help is-danger"></p>
-      </li>      
+      </li> 
+    </ul>
+    <hr>
+    <!-- My channels -->
+    <p class="menu-label">
+      My Channels
+    </p>
+    <ul class="menu-list">
+      <div id="Menu-Channels-List">
+
+      </div>  
     </ul>
     <p class="menu-label">
       Friends
@@ -220,10 +231,11 @@
 
       document.addEventListener("DOMContentLoaded", function() {
         // Get user object on load
-        let user = localStorage.getItem("user"); // user here will be the user object
+        let USER_STATE = localStorage.getItem("user"); // user here will be the user object
+        let CHANNEL_STATE = localStorage.getItem("channel");
         
         // If first time, get unique username
-        if (!user) {
+        if (!USER_STATE) {
           // Force pop up
           document.querySelector("main").innerHTML += document.querySelector("#Template-Modal").innerHTML;
 
@@ -256,55 +268,51 @@
                   document.querySelector("#Index-PopUp").classList.remove("is-active");
 
                   // Store user object client side
-                  user = new User(username, Date.now());
-                  localStorage.setItem("user", JSON.stringify(user));
+                  USER_STATE = new User(username, Date.now());
+                  localStorage.setItem("user", JSON.stringify(USER_STATE));
 
                   document.querySelector("#Layout-Greeting").innerHTML = 
-                    templateFn({"comment": `Hi, ${user.username}`});
+                    templateFn({"comment": `Hi, ${USER_STATE.username}`});
 
-                    // and server side
-                    socket.emit("new user", JSON.stringify(user));
+                  // and server side
+                  socket.emit("new user", JSON.stringify(USER_STATE));
                 }
               });
             }
           });
         } else {
-          user = JSON.parse(user);
-          document.querySelector("#Layout-Greeting").innerHTML = templateFn({"comment": `Welcome back, ${user.username}`});
+          USER_STATE = JSON.parse(USER_STATE);
+          document.querySelector("#Layout-Greeting").innerHTML = templateFn({"comment": `Welcome back, ${USER_STATE.username}`});
         }
 
+        let ChannelList = document.querySelector("#Menu-Channels-List");
 
       // Channel Functionalities
 
         // Create Channel
         const createChannel = document.querySelector("#Menu-search-Add");
-                
+        let searchBarValue;
+
         createChannel.addEventListener("click", function(event){
           event.preventDefault();
 
-          let searchBarValue = document.querySelector("#Menu-search-value").value;
+          searchBarValue = document.querySelector("#Menu-search-value").value;
 
           if (searchBarValue) {
             // Check whether channel name used
             socket.emit("new channel name", searchBarValue); // Raw unvalidated string
+          }
+        });
 
-            socket.on("Channel attempt", channelCreateResult => {
-              if (channelCreateResult == "true") {
-                let channel = new Channel(searchBarValue, user);
-                socket.emit("new channel", JSON.stringify(channel), channel.name);  
-                
-                // show channel upon creation
-                channel.showChat(channelHead, channelConvo);
-              }
+        socket.on("Channel attempt", channelCreateResult => {
+          if (channelCreateResult) {
+            channel = new Channel(searchBarValue, USER_STATE);
+            CHANNEL_STATE = channel;
+            socket.emit("new channel", JSON.stringify(channel), channel.name);  
 
-              // All channel creations
-              socket.on("channel update", channelObj => {
-                let channel = channelJSONConvert(channelObj);
+            ChannelList.append(channel.showChatList(channel));
 
-                // append channel to list of public channels
-                channelContainer.append(channel.showChatList(channel));
-              });
-            });
+            channel.showChat(channelHead, channelConvo);
           }
         });
 
@@ -323,9 +331,9 @@
           const message = document.querySelector("#Chat-Input input").value;
 
           if (message) {
-            const msgObj = new Message(user, message, new Date());
+            const msgObj = new Message(USER_STATE, message, new Date());
 
-            channel.massageHandler(msgObj);
+            channel.messageHandler(msgObj);
             
             socket.emit('message out', JSON.stringify(msgObj));
           }
