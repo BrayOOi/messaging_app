@@ -36,16 +36,19 @@ def user_handler(user_object):
 """Message management"""
 @socketio.on("message out")
 def message_handler(messageParcel, channel_name):
-  emit("message in", messageParcel)
+  room = channel_name
+  join_room(room)
+  emit("message in", messageParcel, room=room)
 
 """Channel management"""
 public_channels_names = []
 public_channels = []
 
-@socketio.on("get channels")
-def channel_display():
-  print(public_channels)
-  emit("give channels", list(json.dumps(public_channel) for public_channel in public_channels))
+# Search public channels
+@socketio.on("search channels")
+def channel_display(searchBarValue = ""):
+  search_results = list(filter(lambda channel_name: searchBarValue in channel_name["name"], public_channels))
+  emit("search channels results", list(json.dumps(search_result) for search_result in search_results))
 
 # Check whether channel name used
 @socketio.on("new channel name")

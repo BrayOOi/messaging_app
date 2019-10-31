@@ -128,7 +128,7 @@
               <button id="Menu-search-Add">
                 <i class="fas fa-plus"></i>
               </button>
-              <button>
+              <button id="Menu-search-Search">
                 <i class="fas fa-search"></i>
               </button>
             </div>
@@ -143,7 +143,8 @@
       My Channels
     </p>
     <ul class="menu-list">
-      <div id="Menu-Channels-List">
+      <div id="Menu-Channels-List"></div>
+      <div id="Menu-My-Channels-List">
 
       </div>  
     </ul>
@@ -225,15 +226,12 @@
       const channelContainer = document.querySelector("#Menu-Channels");
       const channelHead = document.querySelector("#Chat-Name");
       const channelConvo = document.querySelector("#Chat-Convo");
-
+      
       // https://cs50.harvard.edu/web/notes/5/
       const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
 
+
       document.addEventListener("DOMContentLoaded", function() {
-        // Get user object on load
-        let USER_STATE = localStorage.getItem("user"); // user here will be the user object
-        let CHANNEL_STATE = localStorage.getItem("channel");
-        
         // If first time, get unique username
         if (!USER_STATE) {
           // Force pop up
@@ -255,7 +253,9 @@
               // No input
               document.querySelector("#Index-PopUp input").classList.add("is-danger");
               warningBlock.textContent = "Please enter a valid name";
+
             } else {
+
               socket.emit("new username", username); // raw unvalidated string
 
               socket.on("username result", function(result) {
@@ -281,16 +281,22 @@
             }
           });
         } else {
-          USER_STATE = JSON.parse(USER_STATE);
           document.querySelector("#Layout-Greeting").innerHTML = templateFn({"comment": `Welcome back, ${USER_STATE.username}`});
         }
 
-        let ChannelList = document.querySelector("#Menu-Channels-List");
 
+        let ChannelList = document.querySelector("#Menu-Channels-List");
+        let MyChannelList = document.querySelector("#Menu-My-Channels-List");
+
+        if (myChannels = USER_STATE.channels) {
+          Object.values(myChannels).forEach(channel => MyChannelList.append(channelJSONConvert(channel).showChatList()));
+        }
+        
       // Channel Functionalities
 
         // Create Channel
         const createChannel = document.querySelector("#Menu-search-Add");
+        const searchChannel = document.querySelector("#Menu-search-Search");
         let searchBarValue;
 
         createChannel.addEventListener("click", function(event){
@@ -306,14 +312,36 @@
 
         socket.on("Channel attempt", channelCreateResult => {
           if (channelCreateResult) {
-            channel = new Channel(searchBarValue, USER_STATE);
+            channel = new Channel(searchBarValue, USER_STATE.username);
             CHANNEL_STATE = channel;
             socket.emit("new channel", JSON.stringify(channel), channel.name);  
 
-            ChannelList.append(channel.showChatList(channel));
+            console.log(channel);
 
-            channel.showChat(channelHead, channelConvo);
+            ChannelList.append(channel.showChatList());
+
+            channel.showChat();
+
+            // set channel as last upon creation
+            USER_STATE.addChannel(channel);
+            localStorage.setItem("channel", JSON.stringify(channel));
+            localStorage.setItem("user", JSON.stringify(USER_STATE));
           }
+        });
+
+        // Search channels
+        searchChannel.addEventListener("click", function(event){
+          event.preventDefault();
+
+          searchBarValue = document.querySelector("#Menu-search-value").value;
+
+          // Get all channels if no search string
+          socket.emit("search channels", searchBarValue); // Search String
+        });
+
+        socket.on("search channels results", channelSearchResult => {
+          channelSearchResult.forEach(channelSearchItem => 
+            ChannelList.append(channelJSONConvert(channelSearchItem).showChatList()))
         });
 
       // Messaging Functionalities
@@ -321,8 +349,7 @@
         // Message in
         socket.on('message in', (messageParcel, room) => {
           messageParcel = JSON.parse(messageParcel);
-          const messageHTML = templateFn({'comment': `${messageParcel.message} by ${messageParcel.author.username} at ${messageParcel.timeStamp}`});
-          document.querySelector('#Chat-Convo').innerHTML += messageHTML;
+          CHANNEL_STATE.showChat();
         });
 
         // Message out
@@ -331,14 +358,147 @@
           const message = document.querySelector("#Chat-Input input").value;
 
           if (message) {
-            const msgObj = new Message(USER_STATE, message, new Date());
-
-            channel.messageHandler(msgObj);
-            
-            socket.emit('message out', JSON.stringify(msgObj));
+            CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date()));           
           }
         });
       });
+
+      class Message {
+        constructor(username, message, timeStamp) {
+          this.author = username;
+          this.message = message;
+          this.timeStamp = timeStamp;
+        }
+      }
+
+      class User {
+        constructor(username, dateCreated) {
+          this.username = username;
+          this.dateCreated = dateCreated;
+          this.channels = {};
+        }
+
+        changeUsername(newUsername) {
+          this.username = newUsername;
+        }
+
+        addChannel(channelObj) {
+          this.channels[channelObj.name] = channelObj;
+          console.log(this.channels);
+        }
+
+        removeChannel(channelObj) {
+          
+        }
+      }
+
+      class Channel {
+        constructor(name, owner) {
+          this.history = []; // up to 100 messages
+          this.participants = []; // open for anyone, handled by participantAdd
+          this.name = name; // Name of channel
+          this.owner = owner; // Creator
+        }
+
+        // Convo Manager
+        messageHandler(msgObj) {
+          if (this.history.length >= 100) {
+            this.history.shift();
+          }
+          this.history.push(msgObj);
+
+          localStorage.setItem("channel", JSON.stringify(this));
+
+          socket.emit('message out', JSON.stringify(msgObj), this.name);
+        }
+      
+        // Handle the viewing of chat details
+        showChat() {
+          channelHead.textContent = this.name;
+          channelConvo.innerHTML = this.history
+            .map(msg => 
+              `<div>
+                <p>${msg.author} at ${msg.timeStamp}</p>
+                <div>${msg.message}</div>
+              </div>`).join("") || "There is no message to be displayed. Start chatting!";
+        }
+
+        showChatList() {
+          let li = document.createElement("li");
+          let button = document.createElement("button");
+          li.append(button);
+          button.append(this.name);
+          let channelHolder = this;
+
+          button.addEventListener("click", function(event) {
+            event.preventDefault();
+
+            channelHolder.showChat();
+            CHANNEL_STATE = channelHolder;
+
+            // set channel as last upon click
+            localStorage.setItem("channel", JSON.stringify(channelHolder));
+          });
+
+          return li;
+        }
+      }
+
+
+
+        // Private channels get to limit their participants
+        // Entrance only by invitation
+        // Participants is predefined
+      class PrivateChannel extends Channel {
+        constructor(name, owner, participants) {
+          super(name, owner);
+          this.participants = participants;
+        }
+
+        invite(usrObj) {
+          this.participants.push(usrObj);
+        }
+      }
+
+
+
+
+
+
+      if (USER_STATE) {
+        USER_STATE = userJSONConvert(USER_STATE);
+      }
+
+      if (CHANNEL_STATE) {
+        CHANNEL_STATE = channelJSONConvert(CHANNEL_STATE);
+        CHANNEL_STATE.showChat();
+      }
+
+      // JSON convertor to User Objects
+      function userJSONConvert(userParcel) {
+        if (userParcel) {
+          if (typeof userParcel == "string") {
+            userParcel = JSON.parse(userParcel);
+          }
+          let returnedUser = new User(userParcel.username, userParcel.dateCreated);
+          returnedUser.channels = userParcel.channels || {}; // blank object will be converted to undefined
+          return returnedUser;
+        } else {
+          return userParcel;
+        }
+      }
+
+      // JSON convertor to Channel Objects
+      function channelJSONConvert(objParcel) {
+        if (typeof objParcel == "string") {
+          objParcel = JSON.parse(objParcel);
+        }
+        let returnedChannel = new Channel(objParcel.name, objParcel.owner);
+        returnedChannel.history = objParcel.history;
+        returnedChannel.participants = objParcel.participants;
+
+        return returnedChannel;
+      }
 
     </script>
 
