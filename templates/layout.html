@@ -13,11 +13,9 @@
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
     <script>
       // Get user object on load
-      let USER_STATE = localStorage.getItem("user");
+      let storedUSERNAME = localStorage.getItem("user"); // raw username
       let CHANNEL_STATE = localStorage.getItem("channel");
-
-      
-    
+      let USER_STATE = "";
     </script>
   </head>
     <body>

@@ -16,33 +16,38 @@ def index():
 
 """User management"""
 
-users = []
+usernames_used = [] # Raw usernames strings
+users = {} # User JSON
+
+# Return user objects upon request
+@socketio.on("get user")
+def return_userObj(username):
+  if username in users.keys():
+    emit("return user", json.dumps(users[username]))
+  else:
+    emit("return user", "error")
 
 # Check whether username used
 @socketio.on("new username")
 def username_validate(username):
-  if username in users:
+  if username in usernames_used:
     emit("username result", "not allowed")
   else: 
+    usernames_used.append(username)
     emit("username result", "allowed")
   
 # New user to add in memory
 @socketio.on("new user")
 def user_handler(user_object):
-  users.append(user_object)
-  print(users) # Test
+  user_object = json.loads(user_object)
+  print(user_object)
+  users[user_object["username"]] = user_object
+  print(users)
 
-
-"""Message management"""
-@socketio.on("message out")
-def message_handler(messageParcel, channel_name):
-  room = channel_name
-  join_room(room)
-  emit("message in", messageParcel, room=room)
 
 """Channel management"""
 public_channels_names = []
-public_channels = []
+public_channels = {}
 
 # Search public channels
 @socketio.on("search channels")
@@ -66,9 +71,22 @@ def channel_handler(channel_object, channel_name):
   if channel["name"] in list(public_channel["name"] for public_channel in public_channels):
     return
   else:
-    public_channels.append(channel)
+    public_channels[channel_name] = channel
     room = channel_name
     join_room(room)
+
+"""Message management"""
+@socketio.on("get messages")
+def message_history(channel_name):
+  if channel_name:
+    return
+
+
+@socketio.on("message out")
+def message_out(messageParcel, channel_name):
+  room = channel_name
+  join_room(room)
+  emit("message in", messageParcel, room=room)
 
 
 # Run python3 application.py for development server

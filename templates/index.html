@@ -222,75 +222,69 @@
   </script>
 
   <script>
+      // The app will store the userNAME into localStorage
+      // Upon running, the app will retrieve user details from server
+        // AND STORE USER OBJECT into USER_STATE
+        // to keep memory in sync
+
       const templateFn = _.template(document.querySelector("#Template-Username").innerHTML);
       const channelContainer = document.querySelector("#Menu-Channels");
       const channelHead = document.querySelector("#Chat-Name");
       const channelConvo = document.querySelector("#Chat-Convo");
+
+      const ChannelList = document.querySelector("#Menu-Channels-List");
+      const MyChannelList = document.querySelector("#Menu-My-Channels-List");
       
       // https://cs50.harvard.edu/web/notes/5/
       const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
 
-
       document.addEventListener("DOMContentLoaded", function() {
-        // If first time, get unique username
-        if (!USER_STATE) {
-          // Force pop up
-          document.querySelector("main").innerHTML += document.querySelector("#Template-Modal").innerHTML;
+      // USER VALIDATION
+        // Returned users to be greeted
+        if (storedUSERNAME) {
+          // get User Object from server
+          socket.emit("get user", storedUSERNAME);
 
-          // get unvalidated username
-          document.querySelector("#Index-PopUp button").addEventListener("click", function(event) {
-            event.preventDefault();
-
-            const username = document.querySelector("#Index-PopUp input").value;
-            const warningBlock = document.querySelector("#Index-PopUp .help");
-
-            // Remove prior errors if any
-            document.querySelector("#Index-PopUp input").classList.remove("is-danger");
-            warningBlock.textContent = "";
-
-            // Validate username
-            if (!username) {
-              // No input
-              document.querySelector("#Index-PopUp input").classList.add("is-danger");
-              warningBlock.textContent = "Please enter a valid name";
-
+          // server response
+          socket.on("return user", userObj => {
+            // Fallback in case of server problems
+            if (userObj == "error") {
+              // Promise
+              usernameModalManager(new User(new Date()));
+                    
             } else {
+              // Return userObj successful
+              USER_STATE = userJSONConvert(userObj);
 
-              socket.emit("new username", username); // raw unvalidated string
-
-              socket.on("username result", function(result) {
-                if (result == "not allowed") {
-                // Matched username
-                  document.querySelector("#Index-PopUp input").classList.add("is-danger");
-                  warningBlock.textContent = "This username is used";
-                } else {
-                // Success
-                  document.querySelector("#Index-PopUp").classList.remove("is-active");
-
-                  // Store user object client side
-                  USER_STATE = new User(username, Date.now());
-                  localStorage.setItem("user", JSON.stringify(USER_STATE));
-
-                  document.querySelector("#Layout-Greeting").innerHTML = 
-                    templateFn({"comment": `Hi, ${USER_STATE.username}`});
-
-                  // and server side
-                  socket.emit("new user", JSON.stringify(USER_STATE));
-                }
-              });
+              document.querySelector("#Layout-Greeting").innerHTML = 
+                templateFn({"comment": `Welcome back, ${USER_STATE.username}`});
             }
           });
         } else {
-          document.querySelector("#Layout-Greeting").innerHTML = templateFn({"comment": `Welcome back, ${USER_STATE.username}`});
+          // If first time, get unique username
+
+          // new User Object
+          // Promise passed here to update data
+          usernameModalManager(new User(new Date()));
         }
-
-
-        let ChannelList = document.querySelector("#Menu-Channels-List");
-        let MyChannelList = document.querySelector("#Menu-My-Channels-List");
-
+          
+        // Append the channel to aside bar
         if (myChannels = USER_STATE.channels) {
-          Object.values(myChannels).forEach(channel => MyChannelList.append(channelJSONConvert(channel).showChatList()));
+          socket.emit("get channel", )
+          myChannels.forEach(channel => 
+            MyChannelList.append(
+              channelJSONConvert(channel).showChatList()
+            )
+          );
+        } else {
+          let helpfulMsg = document.createElement("li");
+          helpfulMsg.append("Search for channels above to get involved!");
+
+          MyChannelList.append(helpfulMsg);
         }
+
+      });
+       
         
       // Channel Functionalities
 
@@ -315,8 +309,6 @@
             channel = new Channel(searchBarValue, USER_STATE.username);
             CHANNEL_STATE = channel;
             socket.emit("new channel", JSON.stringify(channel), channel.name);  
-
-            console.log(channel);
 
             ChannelList.append(channel.showChatList());
 
@@ -361,7 +353,6 @@
             CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date()));           
           }
         });
-      });
 
       class Message {
         constructor(username, message, timeStamp) {
@@ -372,19 +363,33 @@
       }
 
       class User {
-        constructor(username, dateCreated) {
-          this.username = username;
+        constructor(dateCreated) {
+          this.username;
           this.dateCreated = dateCreated;
-          this.channels = {};
+          this.channels = []; // channel names
         }
 
-        changeUsername(newUsername) {
-          this.username = newUsername;
+        getUsername(unvalidatedUsername) {
+          // Send to server to validate
+          let usernameCheck = new Promise(resolve => {
+            socket.emit("new username", unvalidatedUsername);
+
+            // Results
+            socket.on("username result", function(result) {
+              if (result == "not allowed") {
+                resolve("Username used");
+              } else {
+                this.username = unvalidatedUsername;
+                resolve(false);
+              }
+            });
+          });
+
+          return usernameCheck;
         }
 
         addChannel(channelObj) {
-          this.channels[channelObj.name] = channelObj;
-          console.log(this.channels);
+          this.channels.push(channelObj.name);
         }
 
         removeChannel(channelObj) {
@@ -394,33 +399,25 @@
 
       class Channel {
         constructor(name, owner) {
-          this.history = []; // up to 100 messages
           this.participants = []; // open for anyone, handled by participantAdd
           this.name = name; // Name of channel
           this.owner = owner; // Creator
         }
-
-        // Convo Manager
-        messageHandler(msgObj) {
-          if (this.history.length >= 100) {
-            this.history.shift();
-          }
-          this.history.push(msgObj);
-
-          localStorage.setItem("channel", JSON.stringify(this));
-
-          socket.emit('message out', JSON.stringify(msgObj), this.name);
-        }
       
         // Handle the viewing of chat details
         showChat() {
+          socket.emit('get messages', this.name);
+
           channelHead.textContent = this.name;
-          channelConvo.innerHTML = this.history
-            .map(msg => 
+
+          socket.on('message results', messageObjectArray =>
+            channelConvo.innerHTML = messageObjectArray
+              .map(msg => 
               `<div>
                 <p>${msg.author} at ${msg.timeStamp}</p>
                 <div>${msg.message}</div>
-              </div>`).join("") || "There is no message to be displayed. Start chatting!";
+              </div>`).join("") || "There is no message to be displayed. Start chatting!"
+          );
         }
 
         showChatList() {
@@ -444,43 +441,14 @@
         }
       }
 
-
-
-        // Private channels get to limit their participants
-        // Entrance only by invitation
-        // Participants is predefined
-      class PrivateChannel extends Channel {
-        constructor(name, owner, participants) {
-          super(name, owner);
-          this.participants = participants;
-        }
-
-        invite(usrObj) {
-          this.participants.push(usrObj);
-        }
-      }
-
-
-
-
-
-
-      if (USER_STATE) {
-        USER_STATE = userJSONConvert(USER_STATE);
-      }
-
-      if (CHANNEL_STATE) {
-        CHANNEL_STATE = channelJSONConvert(CHANNEL_STATE);
-        CHANNEL_STATE.showChat();
-      }
-
       // JSON convertor to User Objects
       function userJSONConvert(userParcel) {
         if (userParcel) {
           if (typeof userParcel == "string") {
             userParcel = JSON.parse(userParcel);
           }
-          let returnedUser = new User(userParcel.username, userParcel.dateCreated);
+          let returnedUser = new User(userParcel.dateCreated);
+          returnedUser.username = userParcel.username;
           returnedUser.channels = userParcel.channels || {}; // blank object will be converted to undefined
           return returnedUser;
         } else {
@@ -498,6 +466,85 @@
         returnedChannel.participants = objParcel.participants;
 
         return returnedChannel;
+      }
+
+      // Always return a username string
+      function UsernameWarning(toggle, status="") {
+        const warningText = document.querySelector("#Index-PopUp .help");
+        const warningBlock = document.querySelector("#Index-PopUp input");
+
+          // Clean up prior errors
+        warningBlock.classList.remove("is-danger");
+        warningText.textContent = "";
+
+        if (toggle) {
+          warningBlock.classList.add("is-danger");
+        } else {
+          // turn off the warning
+          warningBlock.classList.remove("is-danger");
+        }
+        warningText.textContent = status;
+      }
+
+      function usernameModalManager(userObject) {
+        const usernameModal = document.querySelector("#Template-Modal").innerHTML;
+      
+        // Force pop up
+        document.querySelector("main").innerHTML += usernameModal;
+
+        // get unvalidated username
+        document.querySelector("#Index-PopUp button")
+          .addEventListener("click", function(event) {
+            event.preventDefault();
+
+            // Remove prior errors if any
+            UsernameWarning(false);
+
+            // retrieve raw value
+            const unvalidatedUsername = document.querySelector("#Index-PopUp input").value;
+            
+            // Client side validation
+            if (!unvalidatedUsername) {
+              UsernameWarning(true, "Please enter a valid name");
+
+            } else {
+              // pass the username to User Object to validate with server
+              let serverValidateResult = new Promise((resolve, reject) => {
+                resolve(userObject.getUsername(unvalidatedUsername))});
+            
+              serverValidateResult.then(result => {
+                if (result) {
+                  UsernameWarning(true, result);
+                } else {
+                  // Success
+                  document.querySelector("#Index-PopUp").classList.remove("is-active");
+                  return unvalidatedUsername;
+                }})
+              .then(validatedUsername => {
+                
+                // update data
+                dataUpdate(validatedUsername, userObject);
+
+                document.querySelector("#Layout-Greeting").innerHTML = 
+                  templateFn({"comment": `Hi, ${validatedUsername}`});
+                })
+              .catch(error => UsernameWarning(true, "Please refresh the page and try again!"));
+            }
+          }
+        );
+      }
+
+      function dataUpdate(nameToBeSaved, userObject) {
+      // Bundle the 3 together
+        // new User Object
+        userObject.username = nameToBeSaved;
+        USER_STATE = userObject;
+     
+
+        socket.emit("new user", JSON.stringify(USER_STATE));
+
+        // Store user object client side
+        localStorage.setItem("user", nameToBeSaved);
       }
 
     </script>
