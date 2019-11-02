@@ -249,7 +249,7 @@
           socket.on("return user", userObj => {
             // Fallback in case of server problems
             if (userObj == "error") {
-              // Promise
+              // USER_STATE is updated inside the promise
               usernameModalManager(new User(new Date()));
                     
             } else {
@@ -264,26 +264,75 @@
           // If first time, get unique username
 
           // new User Object
-          // Promise passed here to update data
+          // USER_STATE is updated inside the promise
           usernameModalManager(new User(new Date()));
         }
-          
-        // Append the channel to aside bar
-        if (myChannels = USER_STATE.channels) {
-          socket.emit("get channel", )
-          myChannels.forEach(channel => 
-            MyChannelList.append(
-              channelJSONConvert(channel).showChatList()
-            )
-          );
+
+      // CHANNEL FUNCTIONALITIES
+        // everytime a channel is shown
+          // CHANNEL_STATE and localStorage will be updated
+          // but it might not be added to USER_STATE
+          // therefore it would be safer to render the 2 separately
+
+        // Main window
+        // Render only the screen 
+        localStorage.removeItem("channel");
+        if (!storedChannelName) {
+          console.log(storedChannelName, 281);
+          channelConvo.innerHTML = 
+            templateFn({"comment": 
+              "Start by searching a channel to join or create one yourself!"});
         } else {
+          // socket.emit("get channels", storedChannelName);
+          console.log(storedChannelName, 287);
+
+          socket.on("channel results", channel => {
+            if (channel) {
+              channel = channelJSONConvert(channel);
+              channel.showChat();
+            } else {
+              // server error or reset
+              // in this branch CHANNEL_STATE is still not defined
+              localStorage.removeItem("channel");
+
+              channelConvo.innerHTML = 
+                templateFn({"comment": 
+                  "Start by searching a channel to join or create one yourself!"});
+            }
+          });
+        }
+
+        // Channels attached to user are merely keys
+        // Append the channels to sidebar
+        if (myChannels = USER_STATE.channels) {
+          console.log(!!myChannels, 307)
+          socket.emit("get channels", myChannels);
+
+          socket.on("channel results", channelResults => {
+            if (channelResults) {
+              channelResults.forEach(channel => 
+                MyChannelList.append(
+                  channelJSONConvert(channel).showChatList()
+                )
+              );
+            } else {
+              // server problem
+              let helpfulMsg = document.createElement("li");
+              helpfulMsg.append("Search for channels above!");
+
+              MyChannelList.append(helpfulMsg);
+            }
+          });
+        } else {
+          // No prior channels last seen
+          // Side bar
           let helpfulMsg = document.createElement("li");
-          helpfulMsg.append("Search for channels above to get involved!");
+          helpfulMsg.append("Search for channels above!");
 
           MyChannelList.append(helpfulMsg);
         }
-
       });
+      // Onload event end
        
         
       // Channel Functionalities
@@ -300,35 +349,38 @@
 
           if (searchBarValue) {
             // Check whether channel name used
-            socket.emit("new channel name", searchBarValue); // Raw unvalidated string
+            socket.emit("new channel attempt", searchBarValue); // Raw unvalidated string
           }
         });
 
-        socket.on("Channel attempt", channelCreateResult => {
+        socket.on("channel create", channelCreateResult => {
           if (channelCreateResult) {
             channel = new Channel(searchBarValue, USER_STATE.username);
-            CHANNEL_STATE = channel;
-            socket.emit("new channel", JSON.stringify(channel), channel.name);  
 
-            ChannelList.append(channel.showChatList());
-
+            // set CHANNEL_STATE and localStorage
+            MyChannelList.append(channel.showChatList());
             channel.showChat();
 
-            // set channel as last upon creation
-            USER_STATE.addChannel(channel);
-            localStorage.setItem("channel", JSON.stringify(channel));
-            localStorage.setItem("user", JSON.stringify(USER_STATE));
+            // announce to server on the creation
+            socket.emit("new channel", JSON.stringify(CHANNEL_STATE));
+
+            // and for User object
+            USER_STATE.addChannel(CHANNEL_STATE);
+
+          } else {
+            // TODO
           }
         });
 
         // Search channels
         searchChannel.addEventListener("click", function(event){
           event.preventDefault();
+          console.log("search, 375")
 
           searchBarValue = document.querySelector("#Menu-search-value").value;
 
-          // Get all channels if no search string
-          socket.emit("search channels", searchBarValue); // Search String
+          // get all channels if no string
+          socket.emit("get channels", searchBarValue); // Search String
         });
 
         socket.on("search channels results", channelSearchResult => {
@@ -370,6 +422,8 @@
         }
 
         getUsername(unvalidatedUsername) {
+          let userHolder = this;
+
           // Send to server to validate
           let usernameCheck = new Promise(resolve => {
             socket.emit("new username", unvalidatedUsername);
@@ -379,7 +433,7 @@
               if (result == "not allowed") {
                 resolve("Username used");
               } else {
-                this.username = unvalidatedUsername;
+                userHolder.username = unvalidatedUsername;
                 resolve(false);
               }
             });
@@ -388,29 +442,45 @@
           return usernameCheck;
         }
 
-        addChannel(channelObj) {
-          this.channels.push(channelObj.name);
+        addChannel(channel) {
+          this.channels.push(channel.name);
+
+          socket.emit("update user", JSON.stringify(this));
         }
 
         removeChannel(channelObj) {
           
         }
+
+        dataUpdate() {
+        // Bundle the 3 together
+          USER_STATE = this;
+
+          socket.emit("new user", JSON.stringify(USER_STATE));
+
+          // Store user object client side
+          localStorage.setItem("user", USER_STATE.username);
+        }
       }
 
       class Channel {
         constructor(name, owner) {
-          this.participants = []; // open for anyone, handled by participantAdd
           this.name = name; // Name of channel
           this.owner = owner; // Creator
         }
       
         // Handle the viewing of chat details
+        // fetch 20 per time
         showChat() {
-          socket.emit('get messages', this.name);
+          // Upon showing convo history, set channel as CHANNEL_STATE
+          this.dataUpdate();
+          console.log(channelHead);
 
           channelHead.textContent = this.name;
 
-          socket.on('message results', messageObjectArray =>
+          socket.emit('get messages', this.name);
+
+          socket.on('message return', messageObjectArray =>
             channelConvo.innerHTML = messageObjectArray
               .map(msg => 
               `<div>
@@ -421,6 +491,7 @@
         }
 
         showChatList() {
+          // display channel in sidebar
           let li = document.createElement("li");
           let button = document.createElement("button");
           li.append(button);
@@ -431,13 +502,19 @@
             event.preventDefault();
 
             channelHolder.showChat();
-            CHANNEL_STATE = channelHolder;
-
-            // set channel as last upon click
-            localStorage.setItem("channel", JSON.stringify(channelHolder));
           });
 
           return li;
+        }
+
+        dataUpdate() {
+        // Bundle the 3 together
+          if (CHANNEL_STATE != this) {
+            CHANNEL_STATE = this;
+
+            // Store user object client side
+            localStorage.setItem("channel", CHANNEL_STATE.name);
+          }
         }
       }
 
@@ -486,7 +563,7 @@
         warningText.textContent = status;
       }
 
-      function usernameModalManager(userObject) {
+      function usernameModalManager(user) {
         const usernameModal = document.querySelector("#Template-Modal").innerHTML;
       
         // Force pop up
@@ -510,7 +587,7 @@
             } else {
               // pass the username to User Object to validate with server
               let serverValidateResult = new Promise((resolve, reject) => {
-                resolve(userObject.getUsername(unvalidatedUsername))});
+                resolve(user.getUsername(unvalidatedUsername))});
             
               serverValidateResult.then(result => {
                 if (result) {
@@ -522,29 +599,17 @@
                 }})
               .then(validatedUsername => {
                 
-                // update data
-                dataUpdate(validatedUsername, userObject);
+                // update data and sync to server
+                user.dataUpdate();
 
                 document.querySelector("#Layout-Greeting").innerHTML = 
                   templateFn({"comment": `Hi, ${validatedUsername}`});
+
                 })
               .catch(error => UsernameWarning(true, "Please refresh the page and try again!"));
             }
           }
         );
-      }
-
-      function dataUpdate(nameToBeSaved, userObject) {
-      // Bundle the 3 together
-        // new User Object
-        userObject.username = nameToBeSaved;
-        USER_STATE = userObject;
-     
-
-        socket.emit("new user", JSON.stringify(USER_STATE));
-
-        // Store user object client side
-        localStorage.setItem("user", nameToBeSaved);
       }
 
     </script>

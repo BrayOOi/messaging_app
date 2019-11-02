@@ -14,8 +14,9 @@
     <script>
       // Get user object on load
       let storedUSERNAME = localStorage.getItem("user"); // raw username
-      let CHANNEL_STATE = localStorage.getItem("channel");
-      let USER_STATE = "";
+      let storedChannelName = localStorage.getItem("channel");
+      let USER_STATE = ""; // store user object
+      let CHANNEL_STATE = ""; // store current channel object
     </script>
   </head>
     <body>

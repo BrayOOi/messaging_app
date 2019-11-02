@@ -16,7 +16,6 @@ def index():
 
 """User management"""
 
-usernames_used = [] # Raw usernames strings
 users = {} # User JSON
 
 # Return user objects upon request
@@ -30,56 +29,96 @@ def return_userObj(username):
 # Check whether username used
 @socketio.on("new username")
 def username_validate(username):
-  if username in usernames_used:
+  if username in users.keys():
     emit("username result", "not allowed")
   else: 
-    usernames_used.append(username)
+    # Serve as placeholder
+    users[username] = True
     emit("username result", "allowed")
   
 # New user to add in memory
 @socketio.on("new user")
 def user_handler(user_object):
   user_object = json.loads(user_object)
-  print(user_object)
   users[user_object["username"]] = user_object
-  print(users)
+
+# Update user information such as new channels
+@socketio.on("update user")
+def user_update(user_object):
+  user_object = json.loads(user_object)
+  if user_object["username"] in users.keys():
+    users[user_object["username"]] = user_object
 
 
 """Channel management"""
-public_channels_names = []
 public_channels = {}
 
-# Search public channels
+# get public channels
+# return a list of JSONs
+@socketio.on("get channels")
+def channel_display(args):
+  print(args, 60)
+  results = []
+
+  if type(args) != list:
+    if args in public_channels.keys():
+      print(args, "64")
+      results.append(json.dumps(public_channels[args]))
+  else:
+    for channel in args: 
+      # Channels cannot be changed names nor removed
+      if public_channels[channel]:
+        results.append(json.dumps(public_channels[channel]))
+
+  if not results:
+    results = 0
+  emit("channel results", results)
+
+# search channels
 @socketio.on("search channels")
-def channel_display(searchBarValue = ""):
-  search_results = list(filter(lambda channel_name: searchBarValue in channel_name["name"], public_channels))
-  emit("search channels results", list(json.dumps(search_result) for search_result in search_results))
+def search_channels(search_term):
+  search_result = []
+  if search_term:
+    for channel_name in public_channels.keys():
+      if search_term in channel_name:
+        search_result.append(json.dumps(public_channels[channel_name]))
+    print(search_result)
+  else:
+    # If no arguments passed in, return all public channels
+    for channels in public_channels.values():
+      search_result.append(json.dumps(channels))
+
+  emit("channel search result", search_result)
+
 
 # Check whether channel name used
-@socketio.on("new channel name")
-def channel_validate(channelParcel):
-  if channelParcel in public_channels_names:
-    emit("Channel attempt", 0)
+@socketio.on("new channel attempt")
+def channel_validate(channel_name):
+  if channel_name in public_channels.keys():
+    emit("channel create", 0)
   else: 
-    public_channels_names.append(channelParcel)
-    emit("Channel attempt", 1)
+    # Placeholder
+    public_channels[channel_name] = True
+    emit("channel create", 1)
 
 # New channel to add in memory
 @socketio.on("new channel")
-def channel_handler(channel_object, channel_name):
+def channel_handler(channel_object):
   channel = json.loads(channel_object)
-  if channel["name"] in list(public_channel["name"] for public_channel in public_channels):
-    return
-  else:
-    public_channels[channel_name] = channel
-    room = channel_name
-    join_room(room)
+  print(channel['name'], 108)
+  public_channels[channel['name']] = channel
+  room = channel['name']
+  join_room(room)
+
+messages = {}
 
 """Message management"""
 @socketio.on("get messages")
 def message_history(channel_name):
-  if channel_name:
-    return
+  if channel_name in messages.keys():
+    emit("messages return", messages[channel_name])
+  else:
+    emit("messages return", 0)
 
 
 @socketio.on("message out")
