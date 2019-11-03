@@ -258,6 +258,24 @@
 
               document.querySelector("#Layout-Greeting").innerHTML = 
                 templateFn({"comment": `Welcome back, ${USER_STATE.username}`});
+
+              // TO BE REFACTORED
+              // Channels attached to user are merely keys
+              // Append the channels to sidebar
+              if (myChannels = USER_STATE.channels) {
+                myChannels = myChannels.filter(channelName => storedChannelName != channelName);
+
+                if (myChannels.length) {
+                  socket.emit("get channels", myChannels);
+                }
+              } else {
+                // No prior channels last seen
+                // Side bar
+                let helpfulMsg = document.createElement("li");
+                helpfulMsg.append("Search for channels above!");
+
+                MyChannelList.append(helpfulMsg);
+              }
             }
           });
         } else {
@@ -276,23 +294,22 @@
 
         // Main window
         // Render only the screen 
-        localStorage.removeItem("channel");
         if (!storedChannelName) {
-          console.log(storedChannelName, 281);
+          channelHead.textContent = "Welcome!";
           channelConvo.innerHTML = 
             templateFn({"comment": 
               "Start by searching a channel to join or create one yourself!"});
         } else {
-          // socket.emit("get channels", storedChannelName);
-          console.log(storedChannelName, 287);
+          socket.emit("get channels", storedChannelName);
 
           socket.on("channel results", channel => {
             if (channel) {
-              channel = channelJSONConvert(channel);
+              channel = channelJSONConvert(channel[0]);
               channel.showChat();
             } else {
               // server error or reset
               // in this branch CHANNEL_STATE is still not defined
+              console.log("error 295 server error");
               localStorage.removeItem("channel");
 
               channelConvo.innerHTML = 
@@ -301,40 +318,25 @@
             }
           });
         }
-
-        // Channels attached to user are merely keys
-        // Append the channels to sidebar
-        if (myChannels = USER_STATE.channels) {
-          console.log(!!myChannels, 307)
-          socket.emit("get channels", myChannels);
-
-          socket.on("channel results", channelResults => {
-            if (channelResults) {
-              channelResults.forEach(channel => 
-                MyChannelList.append(
-                  channelJSONConvert(channel).showChatList()
-                )
-              );
-            } else {
-              // server problem
-              let helpfulMsg = document.createElement("li");
-              helpfulMsg.append("Search for channels above!");
-
-              MyChannelList.append(helpfulMsg);
-            }
-          });
+      });
+      // Onload event end
+              
+      socket.on("channel results", channelResults => {
+        if (channelResults) {
+          channelResults.forEach(channel => 
+            MyChannelList.append(
+              channelJSONConvert(channel).showChatList()
+            )
+          );
         } else {
-          // No prior channels last seen
-          // Side bar
+          // server problem
           let helpfulMsg = document.createElement("li");
           helpfulMsg.append("Search for channels above!");
 
           MyChannelList.append(helpfulMsg);
         }
       });
-      // Onload event end
-       
-        
+
       // Channel Functionalities
 
         // Create Channel
@@ -356,7 +358,7 @@
         socket.on("channel create", channelCreateResult => {
           if (channelCreateResult) {
             channel = new Channel(searchBarValue, USER_STATE.username);
-
+            
             // set CHANNEL_STATE and localStorage
             MyChannelList.append(channel.showChatList());
             channel.showChat();
@@ -387,24 +389,24 @@
           channelSearchResult.forEach(channelSearchItem => 
             ChannelList.append(channelJSONConvert(channelSearchItem).showChatList()))
         });
+      
 
       // Messaging Functionalities
       
         // Message in
-        socket.on('message in', (messageParcel, room) => {
-          messageParcel = JSON.parse(messageParcel);
-          CHANNEL_STATE.showChat();
-        });
+        // socket.on('message in', (messageParcel, room) => {
+        //   messageParcel = JSON.parse(messageParcel);
+        // });
 
-        // Message out
-        document.querySelector('#Chat-Send').addEventListener("click", function(event) {
-          event.preventDefault();
-          const message = document.querySelector("#Chat-Input input").value;
+        // // Message out
+        // document.querySelector('#Chat-Send').addEventListener("click", function(event) {
+        //   event.preventDefault();
+        //   const message = document.querySelector("#Chat-Input input").value;
 
-          if (message) {
-            CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date()));           
-          }
-        });
+        //   if (message) {
+        //     CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date()));           
+        //   }
+        // });
 
       class Message {
         constructor(username, message, timeStamp) {
@@ -472,22 +474,29 @@
         // Handle the viewing of chat details
         // fetch 20 per time
         showChat() {
+          // somehow channelHead.textContent does not work 
+            // even when the value is correctly updated
+            // and will only work after a refresh
+          document.querySelector("#Chat-Name").textContent = this.name;
+
           // Upon showing convo history, set channel as CHANNEL_STATE
           this.dataUpdate();
-          console.log(channelHead);
-
-          channelHead.textContent = this.name;
+         
 
           socket.emit('get messages', this.name);
 
-          socket.on('message return', messageObjectArray =>
-            channelConvo.innerHTML = messageObjectArray
-              .map(msg => 
-              `<div>
-                <p>${msg.author} at ${msg.timeStamp}</p>
-                <div>${msg.message}</div>
-              </div>`).join("") || "There is no message to be displayed. Start chatting!"
-          );
+          socket.on('messages return', messageObjectArray => {
+            if (messageObjectArray) {
+              document.querySelector("#Chat-Convo").innerHTML = messageObjectArray
+                .map(msg => 
+                `<div>
+                  <p>${msg.author} at ${msg.timeStamp}</p>
+                  <div>${msg.message}</div>
+                </div>`).join("");
+             } else {
+              document.querySelector("#Chat-Convo").innerHTML = "There is no message to be displayed. Start chatting!";
+             }
+          });
         }
 
         showChatList() {
@@ -500,6 +509,7 @@
 
           button.addEventListener("click", function(event) {
             event.preventDefault();
+            console.log("button click", 505);
 
             channelHolder.showChat();
           });
@@ -514,6 +524,7 @@
 
             // Store user object client side
             localStorage.setItem("channel", CHANNEL_STATE.name);
+            console.log(localStorage.getItem("channel"), 527);
           }
         }
       }
@@ -540,7 +551,6 @@
         }
         let returnedChannel = new Channel(objParcel.name, objParcel.owner);
         returnedChannel.history = objParcel.history;
-        returnedChannel.participants = objParcel.participants;
 
         return returnedChannel;
       }

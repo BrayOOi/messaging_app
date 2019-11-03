@@ -57,12 +57,11 @@ public_channels = {}
 # return a list of JSONs
 @socketio.on("get channels")
 def channel_display(args):
-  print(args, 60)
   results = []
+  print(args, 61)
 
   if type(args) != list:
     if args in public_channels.keys():
-      print(args, "64")
       results.append(json.dumps(public_channels[args]))
   else:
     for channel in args: 
