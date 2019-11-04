@@ -63,11 +63,10 @@
 
     main {
       padding: 1em;
-      height: inherit;
+      height: calc(100vh - 52px);
       background-color: #eee;
       display: flex; 
       flex-direction: column;
-      align-items: stretch;
     }
 
     #Chat-Input {
@@ -87,7 +86,11 @@
     #Chat-Convo {
       flex-grow: 1;
       background-color: #ddd;
-      /* overflow-y: scroll; */
+      overflow-y: auto;
+    }
+    #Chat-Convo > div {
+      overflow-wrap: break-word;
+      max-width: 75vw;
     }
 
     @media screen and (max-width: 768px) {
@@ -120,7 +123,7 @@
         <div class="input is-rounded level menu-input" id="Menu-search-bar">
           <div class="control is-expanded level-left">
             <div class="level-item">
-              <input type="text" placeholder="Search or create channel" id="Menu-search-value">
+              <input type="text" placeholder="Search or create channel" id="Menu-search-value" class="is-danger">
             </div>
           </div>
           <div class="control level-right">
@@ -136,6 +139,9 @@
         </div>
         <p class="help is-danger"></p>
       </li> 
+      <div id="Menu-Channels-List">
+
+      </div> 
     </ul>
     <hr>
     <!-- My channels -->
@@ -143,7 +149,6 @@
       My Channels
     </p>
     <ul class="menu-list">
-      <div id="Menu-Channels-List"></div>
       <div id="Menu-My-Channels-List">
 
       </div>  
@@ -160,6 +165,7 @@
       <div class="control is-expanded level-left">
         <div class="level-item">
           <input type="text" placeholder="Say something here!">
+          <p class="help is-danger"></p>
         </div>
       </div>
       <div class="control level-right">
@@ -262,20 +268,16 @@
               // TO BE REFACTORED
               // Channels attached to user are merely keys
               // Append the channels to sidebar
-              if (myChannels = USER_STATE.channels) {
-                myChannels = myChannels.filter(channelName => storedChannelName != channelName);
+              
+              if (USER_STATE.channels) {
+                myChannels = USER_STATE.channels.filter(channelName => storedChannelName != channelName);
+
+                console.log(myChannels, 269);
 
                 if (myChannels.length) {
                   socket.emit("get channels", myChannels);
                 }
-              } else {
-                // No prior channels last seen
-                // Side bar
-                let helpfulMsg = document.createElement("li");
-                helpfulMsg.append("Search for channels above!");
-
-                MyChannelList.append(helpfulMsg);
-              }
+              } 
             }
           });
         } else {
@@ -295,22 +297,33 @@
         // Main window
         // Render only the screen 
         if (!storedChannelName) {
+          let helpfulMsg = document.createElement("li");
+            helpfulMsg.append("Click search to view full list of public channels!");
+
+          MyChannelList.append(helpfulMsg);
+
           channelHead.textContent = "Welcome!";
           channelConvo.innerHTML = 
             templateFn({"comment": 
               "Start by searching a channel to join or create one yourself!"});
         } else {
-          socket.emit("get channels", storedChannelName);
+          socket.emit("get last channel", storedChannelName);
 
-          socket.on("channel results", channel => {
+          socket.on("last channel", channel => {
             if (channel) {
-              channel = channelJSONConvert(channel[0]);
+              channel = channelJSONConvert(channel);
+              // It is possible that user clicked on a channel
+                // but did not add channel to USER_OBJECT
+              if (USER_STATE.channels.includes(channel.name)) {
+                MyChannelList.append(channel.showChatList());
+              }
               channel.showChat();
             } else {
               // server error or reset
               // in this branch CHANNEL_STATE is still not defined
-              console.log("error 295 server error");
+              console.error("error 295 server error");
               localStorage.removeItem("channel");
+              alert("Oh no! Something has went wrong! Please refresh the page!");
 
               channelConvo.innerHTML = 
                 templateFn({"comment": 
@@ -323,6 +336,7 @@
               
       socket.on("channel results", channelResults => {
         if (channelResults) {
+          MyChannelList
           channelResults.forEach(channel => 
             MyChannelList.append(
               channelJSONConvert(channel).showChatList()
@@ -346,6 +360,7 @@
 
         createChannel.addEventListener("click", function(event){
           event.preventDefault();
+          SearchBarWarning(false);
 
           searchBarValue = document.querySelector("#Menu-search-value").value;
 
@@ -357,6 +372,9 @@
 
         socket.on("channel create", channelCreateResult => {
           if (channelCreateResult) {
+            if (!USER_STATE.channels.length) {
+              MyChannelList.textContent = "";
+            }
             channel = new Channel(searchBarValue, USER_STATE.username);
             
             // set CHANNEL_STATE and localStorage
@@ -369,8 +387,12 @@
             // and for User object
             USER_STATE.addChannel(CHANNEL_STATE);
 
+            // reset box
+            document.querySelector("#Menu-search-value").value = "";
+
           } else {
-            // TODO
+            // Channel Name used
+            SearchBarWarning(true, "Name used!");
           }
         });
 
@@ -382,37 +404,84 @@
           searchBarValue = document.querySelector("#Menu-search-value").value;
 
           // get all channels if no string
-          socket.emit("get channels", searchBarValue); // Search String
+          socket.emit("search channels", searchBarValue); // Search String
+          document.querySelector("#Menu-search-value").value = "";
         });
 
-        socket.on("search channels results", channelSearchResult => {
-          channelSearchResult.forEach(channelSearchItem => 
-            ChannelList.append(channelJSONConvert(channelSearchItem).showChatList()))
+        socket.on("channel search result", channelSearchResult => {
+          if (!USER_STATE.channels.length) {
+            MyChannelList.textContent = "";
+          }
+
+          if (channelSearchResult) {
+            channelSearchResult
+            .forEach(channelSearchItem => 
+              MyChannelList.append(
+                channelJSONConvert(channelSearchItem).showChatList()
+              )
+            );
+          } else {
+            SearchBarWarning(true, "No result found!");
+          }
         });
       
 
       // Messaging Functionalities
       
         // Message in
-        // socket.on('message in', (messageParcel, room) => {
-        //   messageParcel = JSON.parse(messageParcel);
-        // });
+        socket.on('message in', messageParcel => {
+          if (messageParcel.channel == CHANNEL_STATE.name) {
+            
+            document.querySelector("#Chat-Convo").innerHTML += 
+            `<div>
+                <p>${messageParcel.author} at ${messageParcel.timeStamp}</p>
+                <div>${messageParcel.message}</div>
+              </div>`;
+          } else {
 
-        // // Message out
-        // document.querySelector('#Chat-Send').addEventListener("click", function(event) {
-        //   event.preventDefault();
-        //   const message = document.querySelector("#Chat-Input input").value;
+          }
+        });
 
-        //   if (message) {
-        //     CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date()));           
-        //   }
-        // });
+        // TODO refeactored
+        document.querySelector('#Chat-Input').addEventListener("keyup", function(event) {
+          event.preventDefault();
+
+          if (event.code == "Enter") {
+            const message = document.querySelector("#Chat-Input input").value;
+
+            if (message) {
+              document.querySelector("#Chat-Input input").value = "";
+              CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date(), CHANNEL_STATE));           
+              USER_STATE.addChannel(CHANNEL_STATE);
+            } else {
+              // TODO
+            }
+          }
+        });
+
+        // Message out
+        document.querySelector('#Chat-Send').addEventListener("click", function(event) {
+          event.preventDefault();
+          const message = document.querySelector("#Chat-Input input").value;
+
+          if (message) {
+            document.querySelector("#Chat-Input input").value = "";
+            console.log(CHANNEL_STATE);
+            CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date(), CHANNEL_STATE));           
+            // Register channel under user if 1st time chatting
+            USER_STATE.addChannel(CHANNEL_STATE);
+          } else {
+            // TODO
+          }
+        });
 
       class Message {
-        constructor(username, message, timeStamp) {
+        constructor(username, message, timeStamp, channel) {
           this.author = username;
           this.message = message;
-          this.timeStamp = timeStamp;
+          this.hours = timeStamp.getHours();
+          this.timeStamp = `${(this.hours % 12) < 10 ? "0" + (this.hours % 12) : (this.hours % 12)}.${timeStamp.getMinutes()}${this.hours >= 12 ? 'pm' : 'am'} ${timeStamp.toDateString()}`;
+          this.channel = channel.name;
         }
       }
 
@@ -445,9 +514,11 @@
         }
 
         addChannel(channel) {
-          this.channels.push(channel.name);
+          if (!this.channels.includes(channel.name)) {
+            this.channels.push(channel.name);
 
-          socket.emit("update user", JSON.stringify(this));
+            socket.emit("update user", JSON.stringify(this));
+          }
         }
 
         removeChannel(channelObj) {
@@ -491,7 +562,7 @@
                 .map(msg => 
                 `<div>
                   <p>${msg.author} at ${msg.timeStamp}</p>
-                  <div>${msg.message}</div>
+                  <div">${msg.message}</div>
                 </div>`).join("");
              } else {
               document.querySelector("#Chat-Convo").innerHTML = "There is no message to be displayed. Start chatting!";
@@ -503,18 +574,39 @@
           // display channel in sidebar
           let li = document.createElement("li");
           let button = document.createElement("button");
-          li.append(button);
+          let feed = document.createElement("span");
+          
+          li.append(button, feed);
           button.append(this.name);
           let channelHolder = this;
+
+          let counter = 0;
+          socket.on('message in', messageParcel => {
+            console.log(messageParcel.channel, channelHolder.name, CHANNEL_STATE.name)
+            if (messageParcel.channel == channelHolder.name && 
+                messageParcel.channel != CHANNEL_STATE.name) {
+              counter++;
+              feed.className = "tag is-success";
+              feed.innerHTML = counter;
+            }
+          });
 
           button.addEventListener("click", function(event) {
             event.preventDefault();
             console.log("button click", 505);
 
             channelHolder.showChat();
+
+            counter = 0;
+            feed.className = "";
+            feed.innerHTML = "";
           });
 
           return li;
+        }
+
+        messageHandler(msgObj) {
+          socket.emit("message out", msgObj);
         }
 
         dataUpdate() {
@@ -550,7 +642,6 @@
           objParcel = JSON.parse(objParcel);
         }
         let returnedChannel = new Channel(objParcel.name, objParcel.owner);
-        returnedChannel.history = objParcel.history;
 
         return returnedChannel;
       }
@@ -560,15 +651,27 @@
         const warningText = document.querySelector("#Index-PopUp .help");
         const warningBlock = document.querySelector("#Index-PopUp input");
 
-          // Clean up prior errors
-        warningBlock.classList.remove("is-danger");
+        warningManager(warningBlock, warningText, toggle, status);
+      }
+
+      function SearchBarWarning(toggle, status="") {
+        const searchBar = document.querySelector("#Menu-Channels .input");
+        const searchWarning = document.querySelector("#Menu-Channels p");
+
+        warningManager(searchBar, searchWarning, toggle, status);
+      }
+
+      function warningManager(warningNode, warningText, toggle, status) {
+        // Clean up prior errors
+        warningNode.classList.remove("is-danger");
         warningText.textContent = "";
 
         if (toggle) {
-          warningBlock.classList.add("is-danger");
+          console.log("warning 626");
+          warningNode.classList.add("is-danger");
         } else {
           // turn off the warning
-          warningBlock.classList.remove("is-danger");
+          warningNode.classList.remove("is-danger");
         }
         warningText.textContent = status;
       }
@@ -602,6 +705,7 @@
               serverValidateResult.then(result => {
                 if (result) {
                   UsernameWarning(true, result);
+                  return false;
                 } else {
                   // Success
                   document.querySelector("#Index-PopUp").classList.remove("is-active");
@@ -609,11 +713,13 @@
                 }})
               .then(validatedUsername => {
                 
-                // update data and sync to server
-                user.dataUpdate();
+                  if (validatedUsername){
+                    // update data and sync to server
+                    user.dataUpdate();
 
-                document.querySelector("#Layout-Greeting").innerHTML = 
-                  templateFn({"comment": `Hi, ${validatedUsername}`});
+                    document.querySelector("#Layout-Greeting").innerHTML = 
+                      templateFn({"comment": `Hi, ${validatedUsername}`});
+                  }
 
                 })
               .catch(error => UsernameWarning(true, "Please refresh the page and try again!"));

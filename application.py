@@ -39,6 +39,7 @@ def username_validate(username):
 # New user to add in memory
 @socketio.on("new user")
 def user_handler(user_object):
+  print(user_object)
   user_object = json.loads(user_object)
   users[user_object["username"]] = user_object
 
@@ -56,22 +57,27 @@ public_channels = {}
 # get public channels
 # return a list of JSONs
 @socketio.on("get channels")
-def channel_display(args):
+def channel_display(args): # array
   results = []
   print(args, 61)
 
-  if type(args) != list:
-    if args in public_channels.keys():
-      results.append(json.dumps(public_channels[args]))
-  else:
-    for channel in args: 
-      # Channels cannot be changed names nor removed
-      if public_channels[channel]:
-        results.append(json.dumps(public_channels[channel]))
+  for channel in args: 
+    # Channels cannot be changed names nor removed
+    if channel in public_channels.keys():
+      results.append(json.dumps(public_channels[channel]))
 
   if not results:
     results = 0
   emit("channel results", results)
+
+@socketio.on("get last channel")
+def return_last_channel(channel): #string
+  # The 2 routes are separated as the parcel will be used
+  # for different actions
+  if channel in public_channels.keys():
+    emit("last channel", json.dumps(public_channels[channel]))
+  else: 
+    emit("last channel", 0)
 
 # search channels
 @socketio.on("search channels")
@@ -86,6 +92,9 @@ def search_channels(search_term):
     # If no arguments passed in, return all public channels
     for channels in public_channels.values():
       search_result.append(json.dumps(channels))
+
+  if not search_result:
+    search_result = 0
 
   emit("channel search result", search_result)
 
@@ -121,8 +130,13 @@ def message_history(channel_name):
 
 
 @socketio.on("message out")
-def message_out(messageParcel, channel_name):
-  room = channel_name
+def message_out(messageParcel):
+  room = messageParcel["channel"]
+
+  if room not in messages.keys():
+    messages[room] = []
+  messages[room].append(messageParcel)
+  print(messages, 132)
   join_room(room)
   emit("message in", messageParcel, room=room)
 
