@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import json
 
@@ -23,6 +24,12 @@ users = {} # User JSON
 def return_userObj(username):
   if username in users.keys():
     emit("return user", json.dumps(users[username]))
+
+    # Automatically join rooms
+    print(28)
+    print(users[username]["channels"])
+    for channel in users[username]["channels"]:
+      join_room(channel)
   else:
     emit("return user", "error")
 
@@ -113,7 +120,6 @@ def channel_validate(channel_name):
 @socketio.on("new channel")
 def channel_handler(channel_object):
   channel = json.loads(channel_object)
-  print(channel['name'], 108)
   public_channels[channel['name']] = channel
   room = channel['name']
   join_room(room)
