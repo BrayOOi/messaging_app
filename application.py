@@ -138,7 +138,6 @@ def message_history(channel_name):
 @socketio.on("message out")
 def message_out(messageParcel):
   room = messageParcel["channel"]
-
   if room not in messages.keys():
     messages[room] = []
   messages[room].append(messageParcel)

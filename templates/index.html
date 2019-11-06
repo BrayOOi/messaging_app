@@ -16,11 +16,9 @@
       padding: 20px;
     }
 
-    .menu-list button {
+    .menu-list button, #Chat-Name button {
       background-color: transparent;
       border: none;
-    }
-    .menu-list button:hover {
       cursor: pointer;
     }
 
@@ -61,6 +59,10 @@
       color: #262626;
     }
 
+    #Menu-Channels .menu-label {
+      display: flex;
+      justify-content: space-between;
+    }
     main {
       padding: 1em;
       height: calc(100vh - 52px);
@@ -91,6 +93,20 @@
     #Chat-Convo > div {
       overflow-wrap: break-word;
       max-width: 75vw;
+    }
+
+    .box {
+      padding: .5em;
+      margin: .5em .5em 1em .5em;
+      width: max-content;
+    }
+
+    .box:not(:last-child){
+      margin-bottom: 1em;
+    }
+
+    .box.self-chat {
+      margin-left: auto;
     }
 
     #Chat-Emoji .dropdown-content {
@@ -168,11 +184,17 @@
         </div>
         <p class="help is-danger"></p>
       </li> 
-      <div id="Menu-Channels-List">
-
+      <br>
+      <div id="Menu-Channels-List" class="is-hidden">
+        <p class="menu-label" >
+          <span>Search Results</span>
+          <button class="delete is-small"></button>
+        </p>
+        <div></div>
+        <hr>
       </div> 
     </ul>
-    <hr>
+
     <!-- My channels -->
     <p class="menu-label">
       My Channels
@@ -282,7 +304,7 @@
       const EmojiTemp = _.template(document.querySelector("#Template-Emoji").innerHTML);
       const channelContainer = document.querySelector("#Menu-Channels");
 
-      const ChannelList = document.querySelector("#Menu-Channels-List");
+      const ChannelList = document.querySelector("#Menu-Channels-List > div");
       const MyChannelList = document.querySelector("#Menu-My-Channels-List");
       
       // https://cs50.harvard.edu/web/notes/5/
@@ -347,9 +369,8 @@
           MyChannelList.append(helpfulMsg);
 
           document.querySelector("#Chat-Name").textContent = "Welcome!";
-          document.querySelector("#Chat-Convo").innerHTML = 
-            templateFn({"comment": 
-              "Start by searching a channel to join or create one yourself!"});
+          document.querySelector("#Chat-Convo").innerHTML = templateFn({"comment": 
+            "Start by searching a channel to join or create one yourself!"});
         } else {
           socket.emit("get last channel", storedChannelName);
 
@@ -380,7 +401,6 @@
               
       socket.on("channel results", channelResults => {
         if (channelResults) {
-          MyChannelList
           channelResults.forEach(channel => 
             MyChannelList.append(
               channelJSONConvert(channel).showChatList()
@@ -438,7 +458,7 @@
             // Channel Name used
             SearchBarWarning(true, "Name used!");
 
-            // setTimeout(() => {SearchBarWarning(false);}, 5000);
+            setTimeout(() => {SearchBarWarning(false);}, 5000);
           }
         });
 
@@ -455,14 +475,14 @@
         });
 
         socket.on("channel search result", channelSearchResult => {
-          if (!USER_STATE.channels.length) {
-            MyChannelList.textContent = "";
+          if (ChannelList.textContent) {
+            ChannelList.textContent = "";
           }
 
           if (channelSearchResult) {
-            channelSearchResult
-            .forEach(channelSearchItem => 
-              MyChannelList.append(
+            document.querySelector("#Menu-Channels-List").classList.toggle("is-hidden");
+            channelSearchResult.forEach(channelSearchItem => 
+              ChannelList.append(
                 channelJSONConvert(channelSearchItem).showChatList()
               )
             );
@@ -470,6 +490,14 @@
             SearchBarWarning(true, "No result found!");
           }
         });
+
+        document.querySelector("#Menu-Channels-List button")
+          .addEventListener("click", function(event) {
+            event.preventDefault();
+
+            document.querySelector("#Menu-Channels-List").classList.toggle("is-hidden");
+          }
+        );
       
 
       // Messaging Functionalities
@@ -660,12 +688,6 @@
         "&#x1F1F8;","&#x1F1F9;","&#x1F1FA;","&#x1F1FB;","&#x1F1FC;","&#x1F1FD;","&#x1F1FE;",
         "&#x1F1FF;"];
         
-        emojis.forEach(function(emoji) {
-
-        });
-
-
-
         document.querySelector("#Chat-Emoji .dropdown-content").innerHTML = 
           emojis.map(emoji => EmojiTemp({"emoji": emoji})).join("");
 
@@ -684,10 +706,13 @@
         // Message in
         socket.on('message in', messageParcel => {
           if (messageParcel.channel == CHANNEL_STATE.name) {
-            
+            messageParcel.message = unescape(messageParcel.message);
+            let date = messageParcel.timeStamp;
+            date = new Date(messageParcel.timeStamp.slice(8));
+                        
             document.querySelector("#Chat-Convo").innerHTML += 
-            `<div>
-                <p>${messageParcel.author} at ${messageParcel.timeStamp}</p>
+            `<div class="box ${messageParcel.author == USER_STATE.username ? "self-chat" : ""}">
+                <p>${messageParcel.author} <span class="is-size-7 has-text-grey-light">at ${new Date().getDate() == date.getDate() ? messageParcel.timeStamp.slice(0,7) :  + messageParcel.timeStamp}</span></p>
                 <div>${messageParcel.message}</div>
               </div>`;
           }
@@ -717,7 +742,7 @@
           this.author = username;
           this.message = message;
           this.hours = timeStamp.getHours();
-          this.timeStamp = `${(this.hours % 12) < 10 ? "0" + (this.hours % 12) : (this.hours % 12)}.${timeStamp.getMinutes() < 10 ? "0" + timeStamp.getMinutes() : timeStamp.getMinutes()}${this.hours >= 12 ? 'pm' : 'am'} ${timeStamp.toDateString()}`;
+          this.timeStamp = `${this.hours == 0 ? "12" : ((this.hours % 12) < 10 ? "0" + (this.hours % 12) : (this.hours % 12))}.${timeStamp.getMinutes() < 10 ? "0" + timeStamp.getMinutes() : timeStamp.getMinutes()}${this.hours >= 12 ? 'pm' : 'am'} ${timeStamp.toDateString()}`;
           this.channel = channel.name;
         }
       }
@@ -753,6 +778,7 @@
         addChannel(channel) {
           if (!this.channels.includes(channel.name)) {
             this.channels.push(channel.name);
+            channel.addUser(this);
 
             socket.emit("update user", JSON.stringify(this));
           }
@@ -779,13 +805,16 @@
           this.owner = owner; // Creator
           this.participants = [];
         }
+
+        addUser(user) {
+          this.participants.push(user.username);
+        }
       
         // Handle the viewing of chat details
-        // fetch 20 per time
         showChat() {
             // even when the value is correctly updated
             // and will only work after a refresh
-          document.querySelector("#Chat-Name").textContent = this.name;
+          document.querySelector("#Chat-Name").innerHTML = this.name + `<span class="is-size-7 has-text-grey-light"> | Members: <button class="">${this.participants.length}</button></span>`;
 
           // Upon showing convo history, set channel as CHANNEL_STATE
           this.dataUpdate();
@@ -794,12 +823,13 @@
           socket.emit('get messages', this.name);
 
           socket.on('messages return', messageObjectArray => {
+            let today = new Date().getDate();
             if (messageObjectArray) {
               document.querySelector("#Chat-Convo").innerHTML = messageObjectArray
                 .map(msg => 
-                `<div>
-                  <p>${msg.author} at ${msg.timeStamp}</p>
-                  <div">${msg.message}</div>
+                `<div class="box ${msg.author == USER_STATE.username ? "self-chat" : ""}">
+                  <p>${msg.author} <span class="is-size-7 has-text-grey-light">at ${new Date(msg.timeStamp.slice(8)).getDate() == today ? msg.timeStamp.slice(0,7) : msg.timeStamp}</span></p>
+                  <div">${unescape(msg.message)}</div>
                 </div>`).join("");
              } else {
               document.querySelector("#Chat-Convo").innerHTML = "There is no message to be displayed. Start chatting!";
@@ -817,14 +847,19 @@
           button.append(this.name);
           let channelHolder = this;
 
-          let counter = 0;
+          let counter = {};
           socket.on('message in', messageParcel => {
-            console.log(messageParcel.channel, channelHolder.name, CHANNEL_STATE.name)
             if (messageParcel.channel == channelHolder.name && 
                 messageParcel.channel != CHANNEL_STATE.name) {
-              counter++;
+              
+              if (counter[messageParcel.channel]) {
+                counter[messageParcel.channel]++;
+              } else {
+                counter[messageParcel.channel] = 1;
+              }
+
               feed.className = "tag is-success";
-              feed.innerHTML = counter;
+              feed.innerHTML = counter[messageParcel.channel];
             }
           });
 
@@ -834,7 +869,7 @@
 
             channelHolder.showChat();
 
-            counter = 0;
+            counter[messageParcel.channel] = 0;
             feed.className = "";
             feed.innerHTML = "";
           });
@@ -843,6 +878,7 @@
         }
 
         messageHandler(msgObj) {
+          msgObj["message"] = escape(msgObj["message"]);
           socket.emit("message out", msgObj);
         }
 
