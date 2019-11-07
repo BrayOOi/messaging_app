@@ -95,13 +95,13 @@
       max-width: 75vw;
     }
 
-    .box {
+    #Chat-Convo .box {
       padding: .5em;
       margin: .5em .5em 1em .5em;
       width: max-content;
     }
 
-    .box:not(:last-child){
+    #Chat-Convo .box:not(:last-child){
       margin-bottom: 1em;
     }
 
@@ -211,6 +211,18 @@
   <main>
     <!-- Main channel or last channel -->
     <div id="Chat-Name"></div>
+    <div class="modal" id="Chat-Members">
+      <div class="modal-background"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Members</p>
+          <button class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+          
+        </section>
+      </div> 
+    </div>  
     <div id="Chat-Convo"></div>
     <div id="Chat-Input" class="input is-rounded level menu-input">
       <div class="control is-expanded level-left">
@@ -248,44 +260,45 @@
   </div>
 </script>
 
-  <script id="Template-Modal" type="text/x-lodash-template">
-    <div class="modal is-active" id="Index-PopUp">
-      <div class="modal-background"></div>  
-      <div class="modal-content">
+<script id="Template-Modal" type="text/x-lodash-template">
+  <div class="modal is-active" id="Index-PopUp">
+    <div class="modal-background"></div>  
+    <div class="modal-content">
 
-        <div class="box">
-          <article class="media">
-            <div class="media-content">
-              <div class="content">
+      <div class="box">
+        <article class="media">
+          <div class="media-content">
+            <div class="content">
 
-                <p class="title is-3">Welcome to ChatRoom!</p>
-                <p class="subtitle is-5">First time here? Enter username below to begin!</p>
+              <p class="title is-3">Welcome to ChatRoom!</p>
+              <p class="subtitle is-5">First time here? Enter username below to begin!</p>
 
-                <div class="field">
-                  <label class="label">Name</label>
-                  <div class="control has-icons-left has-icons-right">
-                    <input class="input" type="text" placeholder="Username">
-                    <span class="icon is-small is-left">
-                      <i class="fas fa-user"></i>
-                    </span>
-                    <p class="help is-danger"></p>
-                  </div>
+              <div class="field">
+                <label class="label">Name</label>
+                <div class="control has-icons-left has-icons-right">
+                  <input class="input" type="text" placeholder="Username">
+                  <span class="icon is-small is-left">
+                    <i class="fas fa-user"></i>
+                  </span>
+                  <p class="help is-danger"></p>
                 </div>
-
-                <div class="buttons is-right">
-                  <div class="control">
-                    <button class="button is-link">Submit</button>
-                  </div>
-                </div>
-
               </div>
-            </div>
-          </article>
-        </div>
 
+              <div class="buttons is-right">
+                <div class="control">
+                  <button class="button is-link">Submit</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </article>
       </div>
+
     </div>
-  </script>
+  </div>
+</script>
+
   <script id="Template-Emoji" type="text/x-lodash-template">
     <div class="dropdown-item">
       <%= emoji %>
@@ -302,6 +315,7 @@
 
       const templateFn = _.template(document.querySelector("#Template-Username").innerHTML);
       const EmojiTemp = _.template(document.querySelector("#Template-Emoji").innerHTML);
+      // const MemberTemp = _.template(document.querySelector("#Template-MemberModal").innerHTML);
       const channelContainer = document.querySelector("#Menu-Channels");
 
       const ChannelList = document.querySelector("#Menu-Channels-List > div");
@@ -440,6 +454,7 @@
               MyChannelList.textContent = "";
             }
             channel = new Channel(searchBarValue, USER_STATE.username);
+            channel.addUser(USER_STATE.username);
             
             // set CHANNEL_STATE and localStorage
             MyChannelList.append(channel.showChatList());
@@ -715,6 +730,11 @@
                 <p>${messageParcel.author} <span class="is-size-7 has-text-grey-light">at ${new Date().getDate() == date.getDate() ? messageParcel.timeStamp.slice(0,7) :  + messageParcel.timeStamp}</span></p>
                 <div>${messageParcel.message}</div>
               </div>`;
+
+            if (!CHANNEL_STATE.participants.includes(messageParcel.author)) {
+              CHANNEL_STATE.addUser(messageParcel.author);
+              document.querySelector("#Chat-Name button").textContent = CHANNEL_STATE.participants.length;
+            }
           }
         });
 
@@ -732,6 +752,7 @@
             document.querySelector("#Chat-Input input").value = "";
             CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date(), CHANNEL_STATE));
             USER_STATE.addChannel(CHANNEL_STATE);
+            CHANNEL_STATE.addUser(USER_STATE.username);
           }
         }
 
@@ -778,14 +799,9 @@
         addChannel(channel) {
           if (!this.channels.includes(channel.name)) {
             this.channels.push(channel.name);
-            channel.addUser(this);
 
             socket.emit("update user", JSON.stringify(this));
           }
-        }
-
-        removeChannel(channelObj) {
-          
         }
 
         dataUpdate() {
@@ -806,20 +822,30 @@
           this.participants = [];
         }
 
-        addUser(user) {
-          this.participants.push(user.username);
+        addUser(username) {
+          this.participants.push(username);
         }
       
         // Handle the viewing of chat details
         showChat() {
-            // even when the value is correctly updated
-            // and will only work after a refresh
-          document.querySelector("#Chat-Name").innerHTML = this.name + `<span class="is-size-7 has-text-grey-light"> | Members: <button class="">${this.participants.length}</button></span>`;
+          // even when the value is correctly updated
+          // and will only work after a refresh
+          let channelHolder = this;
+          
+          document.querySelector("#Chat-Name").innerHTML = this.name + `  <span class="is-size-7 has-text-grey-light">| Members: <button class="is-size-7 has-text-grey-light">${this.participants.length}</button></span>`;
+
+          document.querySelector("#Chat-Name button").addEventListener("click", function(event) {
+            document.querySelector("#Chat-Members section").innerHTML = channelHolder.participants.map(name => `<div>${name}</div>`);
+            document.querySelector("#Chat-Members").classList.add("is-active");
+          });
+
+          document.querySelector("#Chat-Members button").addEventListener("click", function(event) {
+            document.querySelector("#Chat-Members").classList.remove("is-active");
+          });
 
           // Upon showing convo history, set channel as CHANNEL_STATE
           this.dataUpdate();
          
-
           socket.emit('get messages', this.name);
 
           socket.on('messages return', messageObjectArray => {
@@ -915,6 +941,7 @@
           objParcel = JSON.parse(objParcel);
         }
         let returnedChannel = new Channel(objParcel.name, objParcel.owner);
+        returnedChannel.participants = objParcel.participants;
 
         return returnedChannel;
       }
