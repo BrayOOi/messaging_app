@@ -108,13 +108,13 @@ def search_channels(search_term):
 
 # Check whether channel name used
 @socketio.on("new channel attempt")
-def channel_validate(channel_name):
+def channel_validate(channel_name, visibility=True):
   if channel_name in public_channels.keys():
-    emit("channel create", 0)
+    emit("channel create", [0, visibility])
   else: 
     # Placeholder
     public_channels[channel_name] = True
-    emit("channel create", 1)
+    emit("channel create", [channel_name, visibility])
 
 # New channel to add in memory
 @socketio.on("new channel")
@@ -123,6 +123,12 @@ def channel_handler(channel_object):
   public_channels[channel['name']] = channel
   room = channel['name']
   join_room(room)
+
+@socketio.on("update channel")
+def channel_update(channel_object):
+  print(public_channels)
+  channel = json.loads(channel_object)
+  public_channels[channel['name']] = channel
 
 messages = {}
 

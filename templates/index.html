@@ -105,7 +105,7 @@
       margin-bottom: 1em;
     }
 
-    .box.self-chat {
+    #Chat-Convo .box.self-chat {
       margin-left: auto;
     }
 
@@ -207,6 +207,11 @@
     <p class="menu-label">
       Friends
     </p>
+    <ul class="menu-list">
+      <div id="Menu-My-Friends-List">
+
+      </div>  
+    </ul>
   </aside>
   <main>
     <!-- Main channel or last channel -->
@@ -448,14 +453,24 @@
           }
         });
 
-        socket.on("channel create", channelCreateResult => {
+        // Manages creation of both public and private channels
+        socket.on("channel create", function([channelCreateResult, visibility]) {
           if (channelCreateResult) {
+            let channel;
             if (!USER_STATE.channels.length) {
               MyChannelList.textContent = "";
             }
-            channel = new Channel(searchBarValue, USER_STATE.username);
-            channel.addUser(USER_STATE.username);
             
+            if (visibility) { // if public and private group chats
+              channel = new Channel(channelCreateResult, USER_STATE.username, visibility);
+              channel.addUser(USER_STATE.username);
+            } else {
+              if (channelCreateResult.split("%%") > 1) { // indicate that this is a 1v1 convo
+                channel = new Channel(channelCreateResult, USER_STATE.username, visibility);
+                channelCreateResult.split("%%").forEach(friend => channel.addUser(friend));
+              }
+            }
+
             // set CHANNEL_STATE and localStorage
             MyChannelList.append(channel.showChatList());
             channel.showChat();
@@ -724,15 +739,21 @@
             messageParcel.message = unescape(messageParcel.message);
             let date = messageParcel.timeStamp;
             date = new Date(messageParcel.timeStamp.slice(8));
+
+            if (document.querySelector("#Chat-Convo").innerHTML == "There is no message to be displayed. Start chatting!") {
+              document.querySelector("#Chat-Convo").innerHTML = "";
+            }
                         
             document.querySelector("#Chat-Convo").innerHTML += 
             `<div class="box ${messageParcel.author == USER_STATE.username ? "self-chat" : ""}">
                 <p>${messageParcel.author} <span class="is-size-7 has-text-grey-light">at ${new Date().getDate() == date.getDate() ? messageParcel.timeStamp.slice(0,7) :  + messageParcel.timeStamp}</span></p>
                 <div>${messageParcel.message}</div>
               </div>`;
-
             if (!CHANNEL_STATE.participants.includes(messageParcel.author)) {
+              console.log(CHANNEL_STATE,753);
               CHANNEL_STATE.addUser(messageParcel.author);
+              console.log(CHANNEL_STATE,755);
+              socket.emit("update channel", JSON.stringify(CHANNEL_STATE));
               document.querySelector("#Chat-Name button").textContent = CHANNEL_STATE.participants.length;
             }
           }
@@ -751,8 +772,10 @@
           if (message) {
             document.querySelector("#Chat-Input input").value = "";
             CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date(), CHANNEL_STATE));
-            USER_STATE.addChannel(CHANNEL_STATE);
-            CHANNEL_STATE.addUser(USER_STATE.username);
+            if (!USER_STATE.channels.includes(CHANNEL_STATE.name)) { // only for 1st time
+              USER_STATE.addChannel(CHANNEL_STATE);
+              CHANNEL_STATE.addUser(USER_STATE.username);
+            }
           }
         }
 
@@ -804,6 +827,10 @@
           }
         }
 
+        addFriend(channelname) {
+          this.friends.push(channelname);
+        }
+
         dataUpdate() {
         // Bundle the 3 together
           USER_STATE = this;
@@ -816,10 +843,11 @@
       }
 
       class Channel {
-        constructor(name, owner) {
+        constructor(name, owner, visibility=true) {
           this.name = name; // Name of channel
           this.owner = owner; // Creator
           this.participants = [];
+          this.visibility = visibility;
         }
 
         addUser(username) {
@@ -828,14 +856,23 @@
       
         // Handle the viewing of chat details
         showChat() {
-          // even when the value is correctly updated
-          // and will only work after a refresh
           let channelHolder = this;
           
           document.querySelector("#Chat-Name").innerHTML = this.name + `  <span class="is-size-7 has-text-grey-light">| Members: <button class="is-size-7 has-text-grey-light">${this.participants.length}</button></span>`;
 
           document.querySelector("#Chat-Name button").addEventListener("click", function(event) {
-            document.querySelector("#Chat-Members section").innerHTML = channelHolder.participants.map(name => `<div>${name}</div>`);
+            console.log(channelHolder.participants, 860);
+            document.querySelector("#Chat-Members section").innerHTML = 
+              channelHolder.participants.map(name => 
+                `<div>${name}${!(name == USER_STATE.username) ? '<button class="button is-info">Contact</button>' : ""}</div>`).join("");
+
+            document.querySelectorAll("#Chat-Members section button")
+            .forEach(node => node.addEventListener("click", function(event) {
+              event.preventDefault();
+
+              // in 1v1 convo names are not important other than to track messages
+              socket.emit("new channel attempt", name + "%%" + USER_STATE.username, false);
+            }));
             document.querySelector("#Chat-Members").classList.add("is-active");
           });
 
@@ -895,7 +932,7 @@
 
             channelHolder.showChat();
 
-            counter[messageParcel.channel] = 0;
+            counter[channelHolder.name] = 0;
             feed.className = "";
             feed.innerHTML = "";
           });
@@ -940,7 +977,7 @@
         if (typeof objParcel == "string") {
           objParcel = JSON.parse(objParcel);
         }
-        let returnedChannel = new Channel(objParcel.name, objParcel.owner);
+        let returnedChannel = new Channel(objParcel.name, objParcel.owner, objParcel.visibility);
         returnedChannel.participants = objParcel.participants;
 
         return returnedChannel;
