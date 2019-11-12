@@ -396,12 +396,18 @@
           socket.on("last channel", channel => {
             if (channel) {
               channel = channelJSONConvert(channel);
-              // It is possible that user clicked on a channel
-                // but did not add channel to USER_OBJECT
-              if (USER_STATE.channels.includes(channel.name)) {
-                MyChannelList.append(channel.showChatList());
+              let privateFriendChat = channel.name.split("%%").length == 3;
+
+              if (privateFriendChat) {
+                document.querySelector("#Menu-My-Friends-List").append(channel.showChatList(privateFriendChat));
+              } else {
+                // It is possible that user clicked on a channel
+                  // but did not add channel to USER_OBJECT
+                if (USER_STATE.channels.includes(channel.name)) {
+                  MyChannelList.append(channel.showChatList());
+                }
               }
-              channel.showChat();
+              channel.showChat(privateFriendChat);
             } else {
               // server error or reset
               // in this branch CHANNEL_STATE is still not defined
@@ -454,29 +460,31 @@
         });
 
         // Manages creation of both public and private channels
-        socket.on("channel create", function([channelCreateResult, visibility]) {
+        socket.on("channel create", function([channelCreateResult, channelName, visibility]) {
+          let privateFriendChat = channelName.split("%%").length == 3;
+
           if (channelCreateResult) {
             let channel;
+            
             if (!USER_STATE.channels.length) {
               MyChannelList.textContent = "";
             }
             
-            if (visibility) { // if public
-              channel = new Channel(channelCreateResult, USER_STATE.username, visibility);
+            if (privateFriendChat) { // indicate that this is a 1v1 convo
+              channel = new Channel(channelName, USER_STATE.username, visibility);
+              channelName.split("%%").forEach(friend => channel.addUser(friend));
+            } else { // public and private group chat
+              channel = new Channel(channelName, USER_STATE.username, visibility);
               channel.addUser(USER_STATE.username);
-            } else {
-              if (channelCreateResult.split("%%") > 1) { // indicate that this is a 1v1 convo
-                channel = new Channel(channelCreateResult, USER_STATE.username, visibility);
-                channelCreateResult.split("%%").forEach(friend => channel.addUser(friend));
-              } else { // private chat
-                channel = new Channel(channelCreateResult, USER_STATE.username, visibility);
-                channel.addUser(USER_STATE.username);
-              }
             }
 
             // set CHANNEL_STATE and localStorage
-            MyChannelList.append(channel.showChatList());
-            channel.showChat();
+            if (privateFriendChat) {
+              document.querySelector("#Menu-My-Friends-List").append(channel.showChatList(privateFriendChat));
+            } else {
+              MyChannelList.append(channel.showChatList());
+            }
+            channel.showChat(privateFriendChat);
 
             // announce to server on the creation
             socket.emit("new channel", JSON.stringify(CHANNEL_STATE));
@@ -488,14 +496,19 @@
             document.querySelector("#Menu-search-value").value = "";
 
           } else {
-
-            if (visibility) {
-              // Channel Name used
-              SearchBarWarning(true, "Name used!");
-
-              setTimeout(() => {SearchBarWarning(false);}, 5000);
+            // Channel Name used
+            
+            if (privateFriendChat) {
+              socket.emit("get last channel", channelName);
             } else {
-              // TODO`
+              if (visibility) {
+              
+                SearchBarWarning(true, "Name used!");
+
+                setTimeout(() => {SearchBarWarning(false);}, 5000);
+              } else {
+
+              }
             }
           }
         });
@@ -835,10 +848,6 @@
           }
         }
 
-        addFriend(channelname) {
-          this.friends.push(channelname);
-        }
-
         dataUpdate() {
         // Bundle the 3 together
           USER_STATE = this;
@@ -863,40 +872,48 @@
         }
       
         // Handle the viewing of chat details
-        showChat() {
+        showChat(privateFriendChat = false) {
           let channelHolder = this;
+          console.log(this.name);
           
-          document.querySelector("#Chat-Name").innerHTML = this.name + `  <span class="is-size-7 has-text-grey-light">| Members: <button class="is-size-7 has-text-grey-light">${this.participants.length}</button></span>`;
+          if (privateFriendChat) {
+            document.querySelector("#Chat-Name").innerHTML = this.participants.filter(name => name != USER_STATE.username)[1];
+          } else {
+            document.querySelector("#Chat-Name").innerHTML = this.name + `  <span class="is-size-7 has-text-grey-light">| Members: <button class="is-size-7 has-text-grey-light">${this.participants.length}</button></span>`;
 
-          document.querySelector("#Chat-Name button").addEventListener("click", function(event) {
-            console.log(channelHolder.participants, 860);
-            let groupMembers = document.querySelector("#Chat-Members section");
+            document.querySelector("#Chat-Name button").addEventListener("click", function(event) {
+              console.log(channelHolder.participants, 860);
+              let groupMembers = document.querySelector("#Chat-Members section");
 
-            // reset content
-            groupMembers.innerHTML = "";
+              // reset content
+              groupMembers.innerHTML = "";
 
-            channelHolder.participants.forEach(function(name) {
-              let contactButton = document.createElement("div");
-                contactButton.innerHTML = name + (!(name == USER_STATE.username) ? '<button class="button is-info">Contact</button>' : "");
+              channelHolder.participants.forEach(function(name) {
+                let contactButton = document.createElement("div");
+                  contactButton.innerHTML = name + (!(name == USER_STATE.username) ? '<button class="button is-info">Contact</button>' : "");
 
-                contactButton.addEventListener("click", function(event) {
-                  event.preventDefault();
+                  contactButton.addEventListener("click", function(event) {
+                    event.preventDefault();
 
-                  // in 1v1 convo names are not important other than to track messages
-                  socket.emit("new channel attempt", "%%" + name + "%%" + USER_STATE.username, false);
+                    // in 1v1 convo names are not important other than to track messages
+                    // names are sorted to ensure that both the users will reach same channels everytime
+                    let namesSorted = [name, USER_STATE.username].sort();
 
-                  // after user got redirected to a private chat
-                  document.querySelector("#Chat-Members").classList.remove("is-active");
-                });
-              groupMembers.append(contactButton);
+                    socket.emit("new channel attempt", "%%" + namesSorted[0] + "%%" + namesSorted[1], false);
+
+                    // after user got redirected to a private chat
+                    document.querySelector("#Chat-Members").classList.remove("is-active");
+                  });
+                groupMembers.append(contactButton);
+              });
+
+              document.querySelector("#Chat-Members").classList.add("is-active");
             });
 
-            document.querySelector("#Chat-Members").classList.add("is-active");
-          });
-
-          document.querySelector("#Chat-Members button").addEventListener("click", function(event) {
-            document.querySelector("#Chat-Members").classList.remove("is-active");
-          });
+            document.querySelector("#Chat-Members button").addEventListener("click", function(event) {
+              document.querySelector("#Chat-Members").classList.remove("is-active");
+            });
+          }
 
           // Upon showing convo history, set channel as CHANNEL_STATE
           this.dataUpdate();
@@ -918,14 +935,18 @@
           });
         }
 
-        showChatList() {
+        showChatList(privateFriendChat = false) {
           // display channel in sidebar
           let li = document.createElement("li");
           let button = document.createElement("button");
           let feed = document.createElement("span");
           
           li.append(button, feed);
-          button.append(this.name);
+          if (privateFriendChat) {
+            button.append(this.participants.filter(name => name != USER_STATE.username)[1]);
+          } else {
+            button.append(this.name);
+          }
           let channelHolder = this;
 
           let counter = {};
@@ -948,7 +969,7 @@
             event.preventDefault();
             console.log("button click", 505);
 
-            channelHolder.showChat();
+            channelHolder.showChat(privateFriendChat);
 
             counter[channelHolder.name] = 0;
             feed.className = "";

@@ -59,7 +59,7 @@ def user_update(user_object):
 
 
 """Channel management"""
-public_channels = {}
+channels = {}
 
 # get public channels
 # return a list of JSONs
@@ -70,8 +70,8 @@ def channel_display(args): # array
 
   for channel in args: 
     # Channels cannot be changed names nor removed
-    if channel in public_channels.keys():
-      results.append(json.dumps(public_channels[channel]))
+    if channel in channels.keys():
+      results.append(json.dumps(channels[channel]))
 
   if not results:
     results = 0
@@ -81,8 +81,8 @@ def channel_display(args): # array
 def return_last_channel(channel): #string
   # The 2 routes are separated as the parcel will be used
   # for different actions
-  if channel in public_channels.keys():
-    emit("last channel", json.dumps(public_channels[channel]))
+  if channel in channels.keys():
+    emit("last channel", json.dumps(channels[channel]))
   else: 
     emit("last channel", 0)
 
@@ -91,14 +91,14 @@ def return_last_channel(channel): #string
 def search_channels(search_term):
   search_result = []
   if search_term:
-    for channel_name in public_channels.keys():
+    for channel_name in channels.keys():
       if search_term in channel_name:
-        search_result.append(json.dumps(public_channels[channel_name]))
+        search_result.append(json.dumps(channels[channel_name]))
     print(search_result)
   else:
     # If no arguments passed in, return all public channels
-    for channels in public_channels.values():
-      search_result.append(json.dumps(channels))
+    for channel in channels.values():
+      search_result.append(json.dumps(channel))
 
   if not search_result:
     search_result = 0
@@ -109,26 +109,26 @@ def search_channels(search_term):
 # Check whether channel name used
 @socketio.on("new channel attempt")
 def channel_validate(channel_name, visibility=True):
-  if channel_name in public_channels.keys():
-    emit("channel create", [0, visibility])
+  if channel_name in channels.keys():
+    emit("channel create", [0, channel_name, visibility])
   else: 
     # Placeholder
-    public_channels[channel_name] = True
-    emit("channel create", [channel_name, visibility])
+    channels[channel_name] = True
+    emit("channel create", [1, channel_name, visibility])
 
 # New channel to add in memory
 @socketio.on("new channel")
 def channel_handler(channel_object):
   channel = json.loads(channel_object)
-  public_channels[channel['name']] = channel
+  channels[channel['name']] = channel
   room = channel['name']
   join_room(room)
 
 @socketio.on("update channel")
 def channel_update(channel_object):
-  print(public_channels)
+  print(channels)
   channel = json.loads(channel_object)
-  public_channels[channel['name']] = channel
+  channels[channel['name']] = channel
 
 messages = {}
 
