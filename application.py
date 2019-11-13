@@ -138,7 +138,6 @@ def channel_handler(channel_object):
 
 @socketio.on("update channel")
 def channel_update(channel_object):
-  print(channels)
   channel = json.loads(channel_object)
   channels[channel['name']] = channel
 
