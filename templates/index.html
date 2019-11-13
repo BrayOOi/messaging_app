@@ -426,11 +426,16 @@
               
       socket.on("channel results", channelResults => {
         if (channelResults) {
-          channelResults.forEach(channel => 
-            MyChannelList.append(
-              channelJSONConvert(channel).showChatList()
-            )
-          );
+          channelResults.forEach(channel => {
+            channel = channelJSONConvert(channel);
+            let privateFriendChat = channel.name.split("%%").length == 3;
+            
+            if (privateFriendChat) {
+              document.querySelector("#Menu-My-Friends-List").append(channel.showChatList(privateFriendChat));
+            } else {
+              MyChannelList.append(channel.showChatList());
+            }
+          });
         } else {
           // server problem
           let helpfulMsg = document.createElement("li");
@@ -439,6 +444,7 @@
           MyChannelList.append(helpfulMsg);
         }
       });
+
 
       // Channel Functionalities
 
@@ -469,14 +475,9 @@
             if (!USER_STATE.channels.length) {
               MyChannelList.textContent = "";
             }
-            
-            if (privateFriendChat) { // indicate that this is a 1v1 convo
-              channel = new Channel(channelName, USER_STATE.username, visibility);
-              channelName.split("%%").forEach(friend => channel.addUser(friend));
-            } else { // public and private group chat
-              channel = new Channel(channelName, USER_STATE.username, visibility);
-              channel.addUser(USER_STATE.username);
-            }
+
+            channel = new Channel(channelName, USER_STATE.username, visibility);
+            channel.addUser(USER_STATE.username);
 
             // set CHANNEL_STATE and localStorage
             if (privateFriendChat) {
@@ -764,19 +765,32 @@
             if (document.querySelector("#Chat-Convo").innerHTML == "There is no message to be displayed. Start chatting!") {
               document.querySelector("#Chat-Convo").innerHTML = "";
             }
-                        
+
+ 
             document.querySelector("#Chat-Convo").innerHTML += 
             `<div class="box ${messageParcel.author == USER_STATE.username ? "self-chat" : ""}">
                 <p>${messageParcel.author} <span class="is-size-7 has-text-grey-light">at ${new Date().getDate() == date.getDate() ? messageParcel.timeStamp.slice(0,7) :  + messageParcel.timeStamp}</span></p>
                 <div>${messageParcel.message}</div>
               </div>`;
+
+            // scroll to bottom of content
+            document.querySelector("#Chat-Convo").scrollTo(0, document.querySelector("#Chat-Convo").scrollHeight);
+
             if (!CHANNEL_STATE.participants.includes(messageParcel.author)) {
               console.log(CHANNEL_STATE,753);
               CHANNEL_STATE.addUser(messageParcel.author);
               console.log(CHANNEL_STATE,755);
               socket.emit("update channel", JSON.stringify(CHANNEL_STATE));
-              document.querySelector("#Chat-Name button").textContent = CHANNEL_STATE.participants.length;
+              if (!messageParcel.channel.split("%%").length == 3) {
+                document.querySelector("#Chat-Name button").textContent = CHANNEL_STATE.participants.length;
+              }
             }
+          } else if (messageParcel.channel.split("%%").length == 3 && !USER_STATE.channels.includes(messageParcel.channel)) {
+            // only a local holder
+            let channelHolder = new Channel(messageParcel.channel, _, false);
+            USER_STATE.addChannel(channelHolder);
+            channelHolder.addUser(USER_STATE.username);
+            document.querySelector("#Menu-My-Friends-List").append(channelHolder.showChatList(true));
           }
         });
 
@@ -795,6 +809,7 @@
             CHANNEL_STATE.messageHandler(new Message(USER_STATE.username, message, new Date(), CHANNEL_STATE));
             if (!USER_STATE.channels.includes(CHANNEL_STATE.name)) { // only for 1st time
               USER_STATE.addChannel(CHANNEL_STATE);
+              // channel is added after the message is rendered
               // CHANNEL_STATE.addUser(USER_STATE.username);
             }
           }
@@ -877,7 +892,7 @@
           console.log(this.name);
           
           if (privateFriendChat) {
-            document.querySelector("#Chat-Name").innerHTML = this.participants.filter(name => name != USER_STATE.username)[1];
+            document.querySelector("#Chat-Name").innerHTML = this.name.split("%%").filter(name => name != USER_STATE.username)[1];
           } else {
             document.querySelector("#Chat-Name").innerHTML = this.name + `  <span class="is-size-7 has-text-grey-light">| Members: <button class="is-size-7 has-text-grey-light">${this.participants.length}</button></span>`;
 
@@ -929,6 +944,8 @@
                   <p>${msg.author} <span class="is-size-7 has-text-grey-light">at ${new Date(msg.timeStamp.slice(8)).getDate() == today ? msg.timeStamp.slice(0,7) : msg.timeStamp}</span></p>
                   <div">${unescape(msg.message)}</div>
                 </div>`).join("");
+
+                document.querySelector("#Chat-Convo").scrollTo(0, document.querySelector("#Chat-Convo").scrollHeight);
              } else {
               document.querySelector("#Chat-Convo").innerHTML = "There is no message to be displayed. Start chatting!";
              }
@@ -943,7 +960,8 @@
           
           li.append(button, feed);
           if (privateFriendChat) {
-            button.append(this.participants.filter(name => name != USER_STATE.username)[1]);
+
+            button.append(this.name.split("%%").filter(name => name != USER_STATE.username)[1]);
           } else {
             button.append(this.name);
           }

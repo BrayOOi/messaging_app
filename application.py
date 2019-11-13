@@ -2,7 +2,7 @@
 import os
 import json
 
-from flask import Flask, render_template, redirect, jsonify
+from flask import Flask, render_template, redirect, jsonify, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
 app = Flask(__name__)
@@ -14,15 +14,16 @@ socketio = SocketIO(app)
 def index():
   return render_template("index.html")
 
-
 """User management"""
 
 users = {} # User JSON
+username_sid_dict = {} # sid will only be useful after an user is registered
 
 # Return user objects upon request
 @socketio.on("get user")
 def return_userObj(username):
   if username in users.keys():
+    username_sid_dict[username] = request.sid
     emit("return user", json.dumps(users[username]))
 
     # Automatically join rooms
@@ -32,6 +33,14 @@ def return_userObj(username):
       join_room(channel)
   else:
     emit("return user", "error")
+
+
+@socketio.on("disconnect")
+def offline_handler():
+  for name, sid in username_sid_dict.items():
+    if request.sid == sid:
+      username_sid_dict[name] = False
+
 
 # Check whether username used
 @socketio.on("new username")
@@ -49,6 +58,8 @@ def user_handler(user_object):
   print(user_object)
   user_object = json.loads(user_object)
   users[user_object["username"]] = user_object
+  username_sid_dict[user_object["username"]] = request.sid
+
 
 # Update user information such as new channels
 @socketio.on("update user")
@@ -85,6 +96,7 @@ def return_last_channel(channel): #string
     emit("last channel", json.dumps(channels[channel]))
   else: 
     emit("last channel", 0)
+
 
 # search channels
 @socketio.on("search channels")
@@ -148,8 +160,18 @@ def message_out(messageParcel):
     messages[room] = []
   messages[room].append(messageParcel)
   print(messages, 132)
-  join_room(room)
-  emit("message in", messageParcel, room=room)
+  if len(messageParcel["channel"].split("%%")) == 3:
+    target_users = messageParcel["channel"].split("%%")[1:]
+    for target_user in target_users:
+      if username_sid_dict[target_user]:
+        emit("message in", messageParcel, room=username_sid_dict[target_user])
+        # Withhold information until the user is back online
+      else:
+        users[target_user]["channels"].append(room)
+
+  else:
+    join_room(room)
+    emit("message in", messageParcel, room=room)
 
 
 # Run python3 application.py for development server
