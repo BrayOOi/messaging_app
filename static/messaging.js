@@ -214,8 +214,8 @@ socket.on('message in', messageParcel => {
     let date = messageParcel.timeStamp;
     date = new Date(messageParcel.timeStamp.slice(8));
 
-    if (document.querySelector("#Chat-Convo").innerHTML == "There is no message to be displayed. Start chatting!") {
-      document.querySelector("#Chat-Convo").innerHTML = "";
+    if (document.querySelector("#Chat-Convo").contains(document.querySelector("#Chat-Welcome"))) {
+      document.querySelector("#Chat-Welcome").remove();
     }
 
     // text balloon

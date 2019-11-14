@@ -484,110 +484,110 @@
   });
 
 
-  // Channel Functionalities
+// Channel Functionalities
 
-    // Create Channel
-    const createChannel = document.querySelector("#Menu-search-Add");
-    const searchChannel = document.querySelector("#Menu-search-Search");
-    let searchBarValue;
+  // Create Channel
+  const createChannel = document.querySelector("#Menu-search-Add");
+  const searchChannel = document.querySelector("#Menu-search-Search");
+  let searchBarValue;
 
-    createChannel.addEventListener("click", function(event){
-      event.preventDefault();
-      SearchBarWarning(false);
+  createChannel.addEventListener("click", function(event){
+    event.preventDefault();
+    SearchBarWarning(false);
 
-      searchBarValue = document.querySelector("#Menu-search-value").value;
+    searchBarValue = document.querySelector("#Menu-search-value").value;
 
-      if (searchBarValue) {
-        // Check whether channel name used
-        socket.emit("new channel attempt", searchBarValue); // Raw unvalidated string
+    if (searchBarValue) {
+      // Check whether channel name used
+      socket.emit("new channel attempt", searchBarValue); // Raw unvalidated string
+    }
+  });
+
+  // Manages creation of both public and private channels
+  socket.on("channel create", function([channelCreateResult, channelName, visibility]) {
+    let privateFriendChat = channelName.split("%%").length == 3;
+
+    if (channelCreateResult) {
+      let channel;
+
+      channel = new Channel(channelName, USER_STATE.username, visibility);
+      channel.addUser(USER_STATE.username);
+
+      if (!USER_STATE.channels.length) {
+        MyChannelList.textContent = "";
       }
-    });
 
-    // Manages creation of both public and private channels
-    socket.on("channel create", function([channelCreateResult, channelName, visibility]) {
-      let privateFriendChat = channelName.split("%%").length == 3;
-
-      if (channelCreateResult) {
-        let channel;
-
-        channel = new Channel(channelName, USER_STATE.username, visibility);
-        channel.addUser(USER_STATE.username);
-
-        if (!USER_STATE.channels.length) {
-          MyChannelList.textContent = "";
-        }
-
-        // set CHANNEL_STATE and localStorage
-        if (privateFriendChat) {
-          document.querySelector("#Menu-My-Friends-List").append(channel.showChatList(privateFriendChat));
-        } else {
-          MyChannelList.append(channel.showChatList());
-        }
-        channel.showChat(privateFriendChat);
-
-        // announce to server on the creation
-        socket.emit("new channel", JSON.stringify(CHANNEL_STATE));
-
-        // and for User object
-        USER_STATE.addChannel(CHANNEL_STATE);
-
-        // reset box
-        document.querySelector("#Menu-search-value").value = "";
-
+      // set CHANNEL_STATE and localStorage
+      if (privateFriendChat) {
+        document.querySelector("#Menu-My-Friends-List").append(channel.showChatList(privateFriendChat));
       } else {
-        // Channel Name used
-        // also for private chat mechanism
-        // the private chat is occupied and user will be redirected to there
-        
-        if (privateFriendChat) {
-          socket.emit("get last channel", channelName);
-        } else {
-          if (visibility) {
-          
-            SearchBarWarning(true, "Name used!");
-
-            setTimeout(() => {SearchBarWarning(false);}, 5000);
-          }
-        }
+        MyChannelList.append(channel.showChatList());
       }
-    });
+      channel.showChat(privateFriendChat);
 
+      // announce to server on the creation
+      socket.emit("new channel", JSON.stringify(CHANNEL_STATE));
 
-    // Search channels
-    searchChannel.addEventListener("click", function(event){
-      event.preventDefault();
+      // and for User object
+      USER_STATE.addChannel(CHANNEL_STATE);
 
-      searchBarValue = document.querySelector("#Menu-search-value").value;
-
-      // get all channels if no string
-      socket.emit("search channels", searchBarValue); // Search String
+      // reset box
       document.querySelector("#Menu-search-value").value = "";
-    });
 
-    socket.on("channel search result", channelSearchResult => {
-      if (ChannelList.textContent) {
-        ChannelList.textContent = "";
-      }
-
-      if (channelSearchResult) {
-        document.querySelector("#Menu-Channels-List").classList.toggle("is-hidden");
-        channelSearchResult.forEach(channelSearchItem => 
-          ChannelList.append(
-            channelJSONConvert(channelSearchItem).showChatList()
-          )
-        );
+    } else {
+      // Channel Name used
+      // also for private chat mechanism
+      // the private chat is occupied and user will be redirected to there
+      
+      if (privateFriendChat) {
+        socket.emit("get last channel", channelName);
       } else {
-        SearchBarWarning(true, "No result found!");
-      }
-    });
+        if (visibility) {
+        
+          SearchBarWarning(true, "Name used!");
 
-    document.querySelector("#Menu-Channels-List button")
-      .addEventListener("click", function(event) {
-        event.preventDefault();
-
-        document.querySelector("#Menu-Channels-List").classList.toggle("is-hidden");
+          setTimeout(() => {SearchBarWarning(false);}, 5000);
+        }
       }
-    );
+    }
+  });
+
+
+  // Search channels
+  searchChannel.addEventListener("click", function(event){
+    event.preventDefault();
+
+    searchBarValue = document.querySelector("#Menu-search-value").value;
+
+    // get all channels if no string
+    socket.emit("search channels", searchBarValue); // Search String
+    document.querySelector("#Menu-search-value").value = "";
+  });
+
+  socket.on("channel search result", channelSearchResult => {
+    if (ChannelList.textContent) {
+      ChannelList.textContent = "";
+    }
+
+    if (channelSearchResult) {
+      document.querySelector("#Menu-Channels-List").classList.toggle("is-hidden");
+      channelSearchResult.forEach(channelSearchItem => 
+        ChannelList.append(
+          channelJSONConvert(channelSearchItem).showChatList()
+        )
+      );
+    } else {
+      SearchBarWarning(true, "No result found!");
+    }
+  });
+
+  document.querySelector("#Menu-Channels-List button")
+    .addEventListener("click", function(event) {
+      event.preventDefault();
+
+      document.querySelector("#Menu-Channels-List").classList.toggle("is-hidden");
+    }
+  );
 </script>
 <script src="/static/main.js"></script>
 <script src="/static/helper.js"></script>

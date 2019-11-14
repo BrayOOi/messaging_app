@@ -136,22 +136,23 @@ class Channel {
 
     socket.on('messages return', messageObjectArray => {
       let today = new Date().getDate();
+       
+      document.querySelector("#Chat-Convo").innerHTML = "";
+
       if (messageObjectArray) {
-        let chatBox = document.querySelector("#Chat-Convo").innerHTML;
-         messageObjectArray
-          .forEach(msg => {
-            chatBox += BalloonTemp({
-              "classes": msg.author == USER_STATE.username ? "self-chat" : "",
-              "author" : msg.author,
-              "time"   : new Date(msg.timeStamp.slice(8)).getDate() == today ? msg.timeStamp.slice(0,7) : msg.timeStamp,
-              "message": unescape(msg.message)
-            });
+        messageObjectArray.forEach(msg => {
+          document.querySelector("#Chat-Convo").innerHTML += BalloonTemp({
+            "classes": msg.author == USER_STATE.username ? "self-chat" : "",
+            "author" : msg.author,
+            "time"   : new Date(msg.timeStamp.slice(8)).getDate() == today ? msg.timeStamp.slice(0,7) : msg.timeStamp,
+            "message": unescape(msg.message)
           });
+        });
 
           // scroll to bottom
           document.querySelector("#Chat-Convo").scrollTo(0, document.querySelector("#Chat-Convo").scrollHeight);
        } else {
-        document.querySelector("#Chat-Convo").innerHTML = "There is no message to be displayed. Start chatting!";
+        document.querySelector("#Chat-Convo").innerHTML = "<div id='Chat-Welcome'>There is no message to be displayed. Start chatting!</div>";
        }
     });
   }
@@ -213,9 +214,11 @@ class Channel {
     socket.emit("message out", msgObj);
 
     if (!CHANNEL_STATE.participants.includes(USER_STATE.username)) {
+      let memberCount = document.querySelector("#Chat-Name button.has-text-grey-light");
 
-      document.querySelector("#Chat-Name button.has-text-grey-light").textContent = 
-        parseInt(document.querySelector("#Chat-Name button.has-text-grey-light").textContent) + 1;
+      if (memberCount) {
+        memberCount.textContent = parseInt(memberCount.textContent) + 1;
+      }
 
       CHANNEL_STATE.addUser(USER_STATE.username);
       socket.emit("update channel", JSON.stringify(CHANNEL_STATE));
