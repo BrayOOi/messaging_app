@@ -105,12 +105,16 @@ def search_channels(search_term):
   if search_term:
     for channel_name in channels.keys():
       if search_term in channel_name:
-        search_result.append(json.dumps(channels[channel_name]))
+        if channels[channel_name]["visibility"]:
+          print(channels[channel_name]["visibility"])
+          search_result.append(json.dumps(channels[channel_name]))
     print(search_result)
   else:
     # If no arguments passed in, return all public channels
-    for channel in channels.values():
-      search_result.append(json.dumps(channel))
+    for channel_name in channels.keys():
+      channel = channels[channel_name]
+      if channel["visibility"]:
+        search_result.append(json.dumps(channel))
 
   if not search_result:
     search_result = 0
