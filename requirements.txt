@@ -2,4 +2,4 @@ requests
 Flask
 Flask-SocketIO
 gunicorn
-eventlet-0.25.1
+eventlet==0.25.1
