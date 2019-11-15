@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-import gevent
 
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
