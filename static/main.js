@@ -196,7 +196,6 @@ class Channel {
 
     button.addEventListener("click", function(event) {
       event.preventDefault();
-      console.log("button click", 505);
 
       channelHolder.showChat(privateFriendChat);
 
@@ -232,7 +231,6 @@ class Channel {
 
       // Store user object client side
       localStorage.setItem("channel", CHANNEL_STATE.name);
-      console.log(localStorage.getItem("channel"), 527);
     }
   }
 }

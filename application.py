@@ -27,8 +27,6 @@ def return_userObj(username):
     emit("return user", json.dumps(users[username]))
 
     # Automatically join rooms
-    print(28)
-    print(users[username]["channels"])
     for channel in users[username]["channels"]:
       join_room(channel)
   else:
@@ -55,7 +53,6 @@ def username_validate(username):
 # New user to add in memory
 @socketio.on("new user")
 def user_handler(user_object):
-  print(user_object)
   user_object = json.loads(user_object)
   users[user_object["username"]] = user_object
   username_sid_dict[user_object["username"]] = request.sid
@@ -77,7 +74,6 @@ channels = {}
 @socketio.on("get channels")
 def channel_display(args): # array
   results = []
-  print(args, 61)
 
   for channel in args: 
     # Channels cannot be changed names nor removed
@@ -106,9 +102,7 @@ def search_channels(search_term):
     for channel_name in channels.keys():
       if search_term in channel_name:
         if channels[channel_name]["visibility"]:
-          print(channels[channel_name]["visibility"])
           search_result.append(json.dumps(channels[channel_name]))
-    print(search_result)
   else:
     # If no arguments passed in, return all public channels
     for channel_name in channels.keys():
@@ -162,7 +156,6 @@ def message_out(messageParcel):
   if room not in messages.keys():
     messages[room] = []
   messages[room].append(messageParcel)
-  print(messages, 132)
   if len(messageParcel["channel"].split("%%")) == 3:
     target_users = messageParcel["channel"].split("%%")[1:]
     for target_user in target_users:
