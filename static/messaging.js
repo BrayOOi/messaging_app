@@ -198,9 +198,7 @@ document.querySelectorAll("#Chat-Emoji .dropdown-item")
 
 
 function toggleEmoji() {
-  document.querySelector("#Chat-Emoji").addEventListener("click", function(event) {
-    this.classList.toggle("is-active");
-  });
+  document.querySelector("#Chat-Emoji").classList.toggle("is-active");
 }
 
 
