@@ -155,12 +155,6 @@
   </div>
 </script>
 
-<script id="Template-Emoji" type="text/x-lodash-template">
-  <div class="dropdown-item">
-    <%= emoji %>
-  </div>
-</script>
-
 <script id="Template-ChatBalloon" type="text/x-lodash-template">
   <div class="box <%= classes %>">
     <p><%= author %>
@@ -181,7 +175,6 @@
   // somehow storing nodes in variables will cause rendering errors
 
   const templateFn = _.template(document.querySelector("#Template-Username").innerHTML);
-  const EmojiTemp = _.template(document.querySelector("#Template-Emoji").innerHTML);
   const BalloonTemp = _.template(document.querySelector("#Template-ChatBalloon").innerHTML);
   const channelContainer = document.querySelector("#Menu-Channels");
 

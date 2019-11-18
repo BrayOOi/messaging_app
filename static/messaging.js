@@ -185,17 +185,18 @@ let emojis = ["&#x1F600;","&#x1F603;","&#x1F604;","&#x1F601;","&#x1F606;","&#x1F
 "&#x1F1F1;","&#x1F1F2;","&#x1F1F3;","&#x1F1F4;","&#x1F1F5;","&#x1F1F6;","&#x1F1F7;",
 "&#x1F1F8;","&#x1F1F9;","&#x1F1FA;","&#x1F1FB;","&#x1F1FC;","&#x1F1FD;","&#x1F1FE;",
 "&#x1F1FF;"];
-        
-document.querySelector("#Chat-Emoji .dropdown-content").innerHTML = 
-  emojis.map(emoji => EmojiTemp({"emoji": emoji})).join("");
 
+// let emojiInterface = document.querySelector("#Chat-Emoji .dropdown-content");
+// let inputBox = document.querySelector("#Chat-Input input");
+
+document.querySelector("#Chat-Emoji .dropdown-content").innerHTML = 
+  emojis.map(emoji => `<div class="dropdown-item">${emoji}</div>`).join("");
 
 document.querySelectorAll("#Chat-Emoji .dropdown-item")
   .forEach(node => node.addEventListener("click", function(event) {
     document.querySelector("#Chat-Input input").value += event.target.textContent.trim();
   }
 ));
-
 
 function toggleEmoji() {
   document.querySelector("#Chat-Emoji").classList.toggle("is-active");

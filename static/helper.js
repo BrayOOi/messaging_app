@@ -71,7 +71,7 @@ function usernameModalManager(user) {
         resolve(user.getUsername(unvalidatedUsername)));
     
       serverValidateResult.then(validatedUsername => {
-
+      
         document.querySelector("#Index-PopUp").classList.remove("is-active");
 
         // update data and sync to server
