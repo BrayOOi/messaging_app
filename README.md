@@ -15,3 +15,12 @@
 - The personal touch of this project includes the implementation of emojis and support of private channels and private messaging
 
 - the javascript files and mainly helpers functions that help to route responses and define behavior
+
+Bugs: 
+- The initial loading time for registration varies heavily after I installed and uninstalled eventlet
+- The emoji click event listener does not work for the first load and will work on refresh (and I have absolutely no idea why)
+-- have tried set onclick attribute, variations of function and the initial versions that involved using querySelectorAll but all of these will work on refresh
+-- (the bug also happened after i uninstalled eventlet and works fine using the querySelectorAll method)
+-- (due to performance reason i decided not to try the querySelectorAll method)
+
+- the contact button to established private contacts was supposed to bring user to the chat between the users (test10's convo), but it did not work after i broke everything with eventlet
