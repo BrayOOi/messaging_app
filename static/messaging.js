@@ -186,17 +186,20 @@ let emojis = ["&#x1F600;","&#x1F603;","&#x1F604;","&#x1F601;","&#x1F606;","&#x1F
 "&#x1F1F8;","&#x1F1F9;","&#x1F1FA;","&#x1F1FB;","&#x1F1FC;","&#x1F1FD;","&#x1F1FE;",
 "&#x1F1FF;"];
 
-// let emojiInterface = document.querySelector("#Chat-Emoji .dropdown-content");
-// let inputBox = document.querySelector("#Chat-Input input");
+let emojiInterface = document.querySelector("#Chat-Emoji .dropdown-content");
+let inputBox = document.querySelector("#Chat-Input input");
 
-document.querySelector("#Chat-Emoji .dropdown-content").innerHTML = 
-  emojis.map(emoji => `<div class="dropdown-item">${emoji}</div>`).join("");
+emojis.forEach(emoji => {
+  let emojiHolder = document.createElement("div");
+  emojiHolder.className = "dropdown-item";
 
-document.querySelectorAll("#Chat-Emoji .dropdown-item")
-  .forEach(node => node.addEventListener("click", function(event) {
-    document.querySelector("#Chat-Input input").value += event.target.textContent.trim();
-  }
-));
+  emojiHolder.addEventListener("click", function(event) {
+    inputBox.value += event.target.innerHTML.trim();
+  });
+
+  emojiHolder.innerHTML = emoji;
+  emojiInterface.append(emojiHolder);  
+});
 
 function toggleEmoji() {
   document.querySelector("#Chat-Emoji").classList.toggle("is-active");
